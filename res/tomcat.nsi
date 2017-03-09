@@ -15,6 +15,9 @@
 
 ; Tomcat script for Nullsoft Installer
 
+  ;General
+  OutFile tomcat-installer.exe
+
   ;Compression options
   CRCCheck on
   SetCompressor /SOLID lzma
@@ -90,8 +93,27 @@ Var ServiceInstallLog
   !define MUI_ICON tomcat.ico
   !define MUI_UNICON tomcat.ico
 
-  ;General
-  OutFile tomcat-installer.exe
+  ;Install Page order
+  !insertmacro MUI_PAGE_WELCOME
+  ; Show file named "INSTALLLICENSE"
+  !insertmacro MUI_PAGE_LICENSE INSTALLLICENSE
+  ; Use custom onLeave function with COMPONENTS page
+  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE pageComponentsLeave
+  !insertmacro MUI_PAGE_COMPONENTS
+  Page custom pageConfiguration pageConfigurationLeave "$(TEXT_CONF_PAGETITLE)"
+  Page custom pageChooseJVM pageChooseJVMLeave "$(TEXT_JVM_PAGETITLE)"
+  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE pageDirectoryLeave
+  !insertmacro MUI_PAGE_DIRECTORY
+  !insertmacro MUI_PAGE_INSTFILES
+  Page custom CheckUserType
+  !insertmacro MUI_PAGE_FINISH
+
+  ;Uninstall Page order
+  !insertmacro MUI_UNPAGE_CONFIRM
+  !insertmacro MUI_UNPAGE_INSTFILES
+
+  ;Language
+  !insertmacro MUI_LANGUAGE English
 
   ;Install Options pages
   LangString TEXT_JVM_TITLE ${LANG_ENGLISH} "Java Virtual Machine"
@@ -114,39 +136,16 @@ Var ServiceInstallLog
   LangString TEXT_CONF_LABEL_ADMINPASSWORD ${LANG_ENGLISH} "Password"
   LangString TEXT_CONF_LABEL_ADMINROLES ${LANG_ENGLISH} "Roles"
 
-  ;Install Page order
-  !insertmacro MUI_PAGE_WELCOME
-  ; Show file named "INSTALLLICENSE"
-  !insertmacro MUI_PAGE_LICENSE INSTALLLICENSE
-  ; Use custom onLeave function with COMPONENTS page
-  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE pageComponentsLeave
-  !insertmacro MUI_PAGE_COMPONENTS
-  Page custom pageConfiguration pageConfigurationLeave "$(TEXT_CONF_PAGETITLE)"
-  Page custom pageChooseJVM pageChooseJVMLeave "$(TEXT_JVM_PAGETITLE)"
-  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE pageDirectoryLeave
-  !insertmacro MUI_PAGE_DIRECTORY
-  !insertmacro MUI_PAGE_INSTFILES
-  Page custom CheckUserType
-  !insertmacro MUI_PAGE_FINISH
-
-  ;Uninstall Page order
-  !insertmacro MUI_UNPAGE_CONFIRM
-  !insertmacro MUI_UNPAGE_INSTFILES
-
   ;Component-selection page
-    ;Descriptions
-    LangString DESC_SecTomcat ${LANG_ENGLISH} "Install the Tomcat Servlet container as a Windows service."
-    LangString DESC_SecTomcatCore ${LANG_ENGLISH} "Install the Tomcat Servlet container core and create the Windows service."
-    LangString DESC_SecTomcatService ${LANG_ENGLISH} "Automatically start the Tomcat service when the computer is started."
-    LangString DESC_SecTomcatNative ${LANG_ENGLISH} "Install APR based Tomcat native .dll for better performance and scalability in production environments."
-    LangString DESC_SecMenu ${LANG_ENGLISH} "Create a Start Menu program group for Tomcat."
-    LangString DESC_SecDocs ${LANG_ENGLISH} "Install the Tomcat documentation bundle. This includes documentation on the servlet container and its configuration options, on the Jasper JSP page compiler, as well as on the native webserver connectors."
-    LangString DESC_SecManager ${LANG_ENGLISH} "Install the Tomcat Manager administrative web application."
-    LangString DESC_SecHostManager ${LANG_ENGLISH} "Install the Tomcat Host Manager administrative web application."
-    LangString DESC_SecExamples ${LANG_ENGLISH} "Install the Servlet and JSP examples web application."
-
-  ;Language
-  !insertmacro MUI_LANGUAGE English
+  LangString DESC_SecTomcat ${LANG_ENGLISH} "Install the Tomcat Servlet container as a Windows service."
+  LangString DESC_SecTomcatCore ${LANG_ENGLISH} "Install the Tomcat Servlet container core and create the Windows service."
+  LangString DESC_SecTomcatService ${LANG_ENGLISH} "Automatically start the Tomcat service when the computer is started."
+  LangString DESC_SecTomcatNative ${LANG_ENGLISH} "Install APR based Tomcat native .dll for better performance and scalability in production environments."
+  LangString DESC_SecMenu ${LANG_ENGLISH} "Create a Start Menu program group for Tomcat."
+  LangString DESC_SecDocs ${LANG_ENGLISH} "Install the Tomcat documentation bundle. This includes documentation on the servlet container and its configuration options, on the Jasper JSP page compiler, as well as on the native webserver connectors."
+  LangString DESC_SecManager ${LANG_ENGLISH} "Install the Tomcat Manager administrative web application."
+  LangString DESC_SecHostManager ${LANG_ENGLISH} "Install the Tomcat Host Manager administrative web application."
+  LangString DESC_SecExamples ${LANG_ENGLISH} "Install the Servlet and JSP examples web application."
 
   ;Install types
   InstType Normal
