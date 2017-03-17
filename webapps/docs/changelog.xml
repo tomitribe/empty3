@@ -46,7 +46,7 @@
 -->
 <section name="Tomcat 6.0.52 (violetagg)">
 </section>
-<section name="Tomcat 6.0.51 (violetagg)">
+<section name="Tomcat 6.0.51 (violetagg)" rtext="released 2017-03-16">
   <subsection name="Jasper">
     <changelog>
       <fix>
