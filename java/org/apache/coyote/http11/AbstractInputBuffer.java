@@ -21,4 +21,5 @@ import org.apache.tomcat.util.res.StringManager;
 
 public abstract class AbstractInputBuffer implements InputBuffer {
 
-    protected static final StringManager sm = StringManager.getManager(AbstractInputBuffer.class);}
+    protected static final StringManager sm = StringManager.getManager(AbstractInputBuffer.class);
+}
