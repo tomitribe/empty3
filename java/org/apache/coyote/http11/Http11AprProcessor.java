@@ -53,6 +53,7 @@ import org.apache.tomcat.util.buf.MessageBytes;
 import org.apache.tomcat.util.http.FastHttpDateFormat;
 import org.apache.tomcat.util.http.MimeHeaders;
 import org.apache.tomcat.util.net.AprEndpoint;
+import org.apache.tomcat.util.net.SendfileKeepAliveState;
 import org.apache.tomcat.util.net.SocketStatus;
 import org.apache.tomcat.util.net.AprEndpoint.Handler.SocketState;
 import org.apache.tomcat.util.res.StringManager;
@@ -333,7 +334,7 @@ public class Http11AprProcessor implements ActionHook {
 
     private int maxCookieCount = 200;
 
-    
+
     // ------------------------------------------------------------- Properties
 
     public String getClientCertProvider() { return clientCertProvider; }
@@ -920,7 +921,15 @@ public class Http11AprProcessor implements ActionHook {
             // Do sendfile as needed: add socket to sendfile and end
             if (sendfileData != null && !error) {
                 sendfileData.socket = socket;
-                sendfileData.keepAlive = keepAlive;
+                if (keepAlive) {
+                    if (inputBuffer.available() == 0) {
+                        sendfileData.keepAliveState = SendfileKeepAliveState.OPEN;
+                    } else {
+                        sendfileData.keepAliveState = SendfileKeepAliveState.PIPELINED;
+                    }
+                } else {
+                    sendfileData.keepAliveState = SendfileKeepAliveState.NONE;
+                }
                 if (!endpoint.getSendfile().add(sendfileData)) {
                     if (sendfileData.socket == 0) {
                         // Didn't send all the data but the socket is no longer

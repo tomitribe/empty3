@@ -661,7 +661,7 @@ public class AprEndpoint extends AbstractEndpoint {
             throw new IllegalStateException(
                     sm.getString("endpoint.apr.previousInitFailed"));
         }
-        
+
         // Create the root APR memory pool
         rootPool = Pool.create(0);
         // Create the pool for the server socket
@@ -1823,7 +1823,7 @@ public class AprEndpoint extends AbstractEndpoint {
         // Position
         public long pos;
         // KeepAlive flag
-        public boolean keepAlive;
+        public SendfileKeepAliveState keepAliveState = SendfileKeepAliveState.NONE;
     }
 
 
@@ -2070,17 +2070,32 @@ public class AprEndpoint extends AbstractEndpoint {
                             state.pos = state.pos + nw;
                             if (state.pos >= state.end) {
                                 remove(state);
-                                if (state.keepAlive) {
+                                switch (state.keepAliveState) {
+                                case NONE: {
+                                    // Close the socket since this is
+                                    // the end of the not keep-alive request.
+                                    destroySocket(state.socket);
+                                    break;
+                                }
+                                case PIPELINED: {
                                     // Destroy file descriptor pool, which should close the file
                                     Pool.destroy(state.fdpool);
                                     Socket.timeoutSet(state.socket, soTimeout * 1000);
-                                    // If all done put the socket back in the poller for
+                                    // Process the pipelined request data
+                                    if (!processSocket(state.socket, SocketStatus.OPEN)) {
+                                        destroySocket(state.socket);
+                                    }
+                                    break;
+                                }
+                                case OPEN: {
+                                    // Destroy file descriptor pool, which should close the file
+                                    Pool.destroy(state.fdpool);
+                                    Socket.timeoutSet(state.socket, soTimeout * 1000);
+                                    // Put the socket back in the poller for
                                     // processing of further requests
                                     getPoller().add(state.socket);
-                                } else {
-                                    // Close the socket since this is
-                                    // the end of not keep-alive request.
-                                    destroySocket(state.socket);
+                                    break;
+                                }
                                 }
                             }
                         }

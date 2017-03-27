@@ -49,6 +49,7 @@ import org.apache.tomcat.util.http.MimeHeaders;
 import org.apache.tomcat.util.net.NioChannel;
 import org.apache.tomcat.util.net.NioEndpoint;
 import org.apache.tomcat.util.net.SSLSupport;
+import org.apache.tomcat.util.net.SendfileKeepAliveState;
 import org.apache.tomcat.util.net.SocketStatus;
 import org.apache.tomcat.util.net.NioEndpoint.Handler.SocketState;
 import org.apache.tomcat.util.res.StringManager;
@@ -968,7 +969,15 @@ public class Http11NioProcessor implements ActionHook {
         if (sendfileData != null && !error) {
             KeyAttachment ka = (KeyAttachment)socket.getAttachment(false);
             ka.setSendfileData(sendfileData);
-            sendfileData.keepAlive = keepAlive;
+            if (keepAlive) {
+                if (inputBuffer.available() == 0) {
+                    sendfileData.keepAliveState = SendfileKeepAliveState.OPEN;
+                } else {
+                    sendfileData.keepAliveState = SendfileKeepAliveState.PIPELINED;
+                }
+            } else {
+                sendfileData.keepAliveState = SendfileKeepAliveState.NONE;
+            }
             SelectionKey key = socket.getIOChannel().keyFor(socket.getPoller().getSelector());
             //do the first write on this thread, might as well
             switch (socket.getPoller().processSendfile(key, ka, true)) {
