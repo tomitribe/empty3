@@ -812,6 +812,7 @@ public class Http11AprProcessor implements ActionHook {
 
         boolean keptAlive = false;
         boolean openSocket = false;
+        boolean sendfileInProgress = false;
 
         while (!error && keepAlive && !comet) {
 
@@ -941,7 +942,7 @@ public class Http11AprProcessor implements ActionHook {
                         }
                         error = true;
                     } else {
-                        openSocket = true;
+                        sendfileInProgress = true;
                     }
                     break;
                 }
@@ -962,6 +963,8 @@ public class Http11AprProcessor implements ActionHook {
             } else {
                 return SocketState.LONG;
             }
+        } else if (sendfileInProgress) {
+            return SocketState.SENDFILE;
         } else {
             recycle();
             return (openSocket) ? SocketState.OPEN : SocketState.CLOSED;

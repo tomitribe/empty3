@@ -22,6 +22,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
 import org.apache.juli.logging.Log;
@@ -160,6 +162,8 @@ public class AprEndpoint extends AbstractEndpoint {
 
     /* Acceptor thread array */
     private Acceptor acceptors[] = null;
+
+    private Map<Long,Object> locks = new ConcurrentHashMap<Long, Object>();
 
     // ------------------------------------------------------------- Properties
 
@@ -1244,6 +1248,8 @@ public class AprEndpoint extends AbstractEndpoint {
      * Process given socket.
      */
     protected boolean processSocketWithOptions(long socket) {
+        Long key = Long.valueOf(socket);
+        locks.put(key, new Object());
         try {
             if (executor == null) {
                 getWorkerThread().assignWithOptions(socket);
@@ -1254,6 +1260,7 @@ public class AprEndpoint extends AbstractEndpoint {
             // This means we got an OOM or similar creating a thread, or that
             // the pool and its queue are full
             log.error(sm.getString("endpoint.process.fail"), t);
+            locks.remove(key);
             return false;
         }
         return true;
@@ -1300,6 +1307,8 @@ public class AprEndpoint extends AbstractEndpoint {
     }
 
     private void destroySocket(long socket) {
+        Long key = Long.valueOf(socket);
+        locks.remove(key);
         if (running && socket != 0) {
             // If not running the socket will be destroyed by
             // parent pool or acceptor socket.
@@ -1769,16 +1778,21 @@ public class AprEndpoint extends AbstractEndpoint {
                     }
                 } else {
 
-                    // Process the request from this socket
-                    if ((status != null) && (handler.event(socket, status) == Handler.SocketState.CLOSED)) {
-                        // Close socket and pool
-                        destroySocket(socket);
-                        socket = 0;
-                    } else if ((status == null) && ((options && !setSocketOptions(socket))
-                            || handler.process(socket) == Handler.SocketState.CLOSED)) {
-                        // Close socket and pool
-                        destroySocket(socket);
-                        socket = 0;
+                    Long key = Long.valueOf(socket);
+                    Object lock = locks.get(key);
+
+                    synchronized (lock) {
+                        // Process the request from this socket
+                        if ((status != null) && (handler.event(socket, status) == Handler.SocketState.CLOSED)) {
+                            // Close socket and pool
+                            destroySocket(socket);
+                            socket = 0;
+                        } else if ((status == null) && ((options && !setSocketOptions(socket))
+                                || handler.process(socket) == Handler.SocketState.CLOSED)) {
+                            // Close socket and pool
+                            destroySocket(socket);
+                            socket = 0;
+                        }
                     }
                 }
 
@@ -2082,7 +2096,7 @@ public class AprEndpoint extends AbstractEndpoint {
                                     Pool.destroy(state.fdpool);
                                     Socket.timeoutSet(state.socket, soTimeout * 1000);
                                     // Process the pipelined request data
-                                    if (!processSocket(state.socket, SocketStatus.OPEN)) {
+                                    if (!processSocket(state.socket, null)) {
                                         destroySocket(state.socket);
                                     }
                                     break;
@@ -2155,7 +2169,7 @@ public class AprEndpoint extends AbstractEndpoint {
      */
     public interface Handler {
         public enum SocketState {
-            OPEN, CLOSED, LONG
+            OPEN, CLOSED, LONG, SENDFILE
         }
         public SocketState process(long socket);
         public SocketState event(long socket, SocketStatus status);
@@ -2268,16 +2282,19 @@ public class AprEndpoint extends AbstractEndpoint {
                 }
             } else {
                 // Process the request from this socket
-                if (!setSocketOptions(socket)
-                        || handler.process(socket) == Handler.SocketState.CLOSED) {
-                    // Close socket and pool
-                    destroySocket(socket);
-                    socket = 0;
+                Long key = Long.valueOf(socket);
+                Object lock = locks.get(key);
+
+                synchronized (lock) {
+                    if (!setSocketOptions(socket)
+                            || handler.process(socket) == Handler.SocketState.CLOSED) {
+                        // Close socket and pool
+                        destroySocket(socket);
+                        socket = 0;
+                    }
                 }
             }
-
         }
-
     }
 
 
@@ -2298,13 +2315,17 @@ public class AprEndpoint extends AbstractEndpoint {
 
         public void run() {
 
-            // Process the request from this socket
-            if (handler.process(socket) == Handler.SocketState.CLOSED) {
-                // Close socket and pool
-                destroySocket(socket);
-                socket = 0;
-            }
+            Long key = Long.valueOf(socket);
+            Object lock = locks.get(key);
 
+            synchronized (lock) {
+                // Process the request from this socket
+                if (handler.process(socket) == Handler.SocketState.CLOSED) {
+                    // Close socket and pool
+                    destroySocket(socket);
+                    socket = 0;
+                }
+            }
         }
 
     }
@@ -2329,16 +2350,17 @@ public class AprEndpoint extends AbstractEndpoint {
 
         public void run() {
 
-            // Process the request from this socket
-            if (handler.event(socket, status) == Handler.SocketState.CLOSED) {
-                // Close socket and pool
-                destroySocket(socket);
-                socket = 0;
+            Long key = Long.valueOf(socket);
+            Object lock = locks.get(key);
+
+            synchronized (lock) {
+                // Process the request from this socket
+                if (handler.event(socket, status) == Handler.SocketState.CLOSED) {
+                    // Close socket and pool
+                    destroySocket(socket);
+                    socket = 0;
+                }
             }
-
         }
-
     }
-
-
 }

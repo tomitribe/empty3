@@ -1854,7 +1854,7 @@ public class NioEndpoint extends AbstractEndpoint {
                             if (log.isDebugEnabled()) {
                                 log.debug("Connection is keep alive, processing pipe-lined data");
                             }
-                            if (!processSocket(sc, SocketStatus.OPEN, true)) {
+                            if (!processSocket(sc, null, true)) {
                                 cancelledKey(sk, SocketStatus.DISCONNECT, false);
                             }
                             break;
