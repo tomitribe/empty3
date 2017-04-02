@@ -826,8 +826,6 @@ public class Http11AprProcessor implements ActionHook {
                     // (long keepalive), so that the processor should be recycled
                     // and the method should return true
                     openSocket = true;
-                    // Add the socket to the poller
-                    endpoint.getPoller().add(socket);
                     break;
                 }
                 request.setStartTime(System.currentTimeMillis());
