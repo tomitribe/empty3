@@ -45,6 +45,15 @@
  General, Catalina, Coyote, Jasper, Cluster, Web applications, Other
 -->
 <section name="Tomcat 6.0.54 (violetagg)">
+  <subsection name="General">
+    <changelog>
+      <add>
+        Allow to exclude JUnit test classes using the build property
+        <code>test.exclude</code> and document the property in
+        BUILDING.txt. (rjung)
+      </add>
+    </changelog>
+  </subsection>
 </section>
 <section name="Tomcat 6.0.53 (violetagg)" rtext="released 2017-04-07">
   <subsection name="Coyote">
