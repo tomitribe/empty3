@@ -141,7 +141,7 @@ using your SVN client.
 (4) Rebuilds
 
 For a quick rebuild of only modified code you can use:
-   
+
     cd ${tomcat.source}
     ant
 
