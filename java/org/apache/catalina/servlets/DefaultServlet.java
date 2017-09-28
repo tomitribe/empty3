@@ -792,23 +792,6 @@ public class DefaultServlet
             return;
         }
 
-        // If the resource is not a collection, and the resource path
-        // ends with "/" or "\", return NOT FOUND
-        if (cacheEntry.context == null) {
-            if (path.endsWith("/") || (path.endsWith("\\"))) {
-                // Check if we're included so we can return the appropriate
-                // missing resource name in the error
-                String requestUri = (String) request.getAttribute(
-                                            Globals.INCLUDE_REQUEST_URI_ATTR);
-                if (requestUri == null) {
-                    requestUri = request.getRequestURI();
-                }
-                response.sendError(HttpServletResponse.SC_NOT_FOUND,
-                                   requestUri);
-                return;
-            }
-        }
-
         boolean isError = false;
         Integer status =
             (Integer) request.getAttribute("javax.servlet.error.status_code");
