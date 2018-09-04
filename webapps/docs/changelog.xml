@@ -76,6 +76,10 @@
         of the CGI servlet from <code>true</code> to <code>false</code> as
         additional hardening against CVE-2019-0232. (markt)
       </update>
+      <fix>
+        When generating a redirect to a directory in the Default Servlet, avoid
+        generating a protocol relative redirect. (markt)
+      </fix>
     </changelog>
   </subsection>
 </section>
