@@ -29,10 +29,12 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.regex.Pattern;
@@ -53,6 +55,7 @@ import org.apache.catalina.Globals;
 import org.apache.catalina.util.IOTools;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
+import org.apache.tomcat.util.compat.JrePlatform;
 import org.apache.tomcat.util.res.StringManager;
 
 
@@ -242,10 +245,29 @@ public final class CGIServlet extends HttpServlet {
     private static final StringManager sm = StringManager.getManager(Constants.Package);
 
     private static final String LINE_SEP = System.getProperty("line.separator");
-    
+
     /* some vars below copied from Craig R. McClanahan's InvokerServlet */
 
     private static final long serialVersionUID = 1L;
+
+    private static final Set<String> DEFAULT_SUPER_METHODS = new HashSet<String>();
+    private static final Pattern DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN;
+    private static final String ALLOW_ANY_PATTERN = ".*";
+
+    static {
+        DEFAULT_SUPER_METHODS.add("HEAD");
+        DEFAULT_SUPER_METHODS.add("OPTIONS");
+        DEFAULT_SUPER_METHODS.add("TRACE");
+
+        if (JrePlatform.IS_WINDOWS) {
+            DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN = Pattern.compile("[a-zA-Z0-9\\Q-_.\\/:\\E]+");
+        } else {
+            // No restrictions
+            DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN = null;
+        }
+
+    }
+
 
     /**
      *  The CGI search path will start at
@@ -264,6 +286,11 @@ public final class CGIServlet extends HttpServlet {
     /** the encoding to use for parameters */
     private String parameterEncoding =
         System.getProperty("file.encoding", "UTF-8");
+
+    /* The HTTP methods this Servlet will pass to the CGI script */
+    private Set<String> cgiMethods = new HashSet<String>();
+    private boolean cgiMethodsAll = false;
+
 
     /**
      * The time (in milliseconds) to wait for the reading of stderr to complete
@@ -286,6 +313,31 @@ public final class CGIServlet extends HttpServlet {
 
     /** the shell environment variables to be passed to the CGI script */
     private final Hashtable<String,String> shellEnv = new Hashtable<String,String>();
+
+    /**
+     * Enable creation of script command line arguments from query-string.
+     * See https://tools.ietf.org/html/rfc3875#section-4.4
+     * 4.4.  The Script Command Line
+     */
+    private boolean enableCmdLineArguments = false;
+
+    /**
+     * Limits the encoded form of individual command line arguments. By default
+     * values are limited to those allowed by the RFC.
+     * See https://tools.ietf.org/html/rfc3875#section-4.4
+     *
+     * Uses \Q...\E to avoid individual quoting.
+     */
+    private Pattern cmdLineArgumentsEncodedPattern =
+            Pattern.compile("[a-zA-Z0-9\\Q%;/?:@&,$-_.!~*'()\\E]+");
+
+    /**
+     * Limits the decoded form of individual command line arguments. Default
+     * varies by platform.
+     */
+    private Pattern cmdLineArgumentsDecodedPattern = DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN;
+
+
 
     /**
      * Sets instance variables.
@@ -324,6 +376,17 @@ public final class CGIServlet extends HttpServlet {
             shellEnv.putAll(System.getenv());
         }
 
+        Enumeration<String> e = config.getInitParameterNames();
+        while(e.hasMoreElements()) {
+            String initParamName = e.nextElement();
+            if (initParamName.startsWith("environment-variable-")) {
+                if (initParamName.length() == 21) {
+                    throw new ServletException(sm.getString("cgiServlet.emptyEnvVarName"));
+                }
+                shellEnv.put(initParamName.substring(21), config.getInitParameter(initParamName));
+            }
+        }
+
         if (getServletConfig().getInitParameter("executable") != null) {
             cgiExecutable = getServletConfig().getInitParameter("executable");
         }
@@ -353,6 +416,41 @@ public final class CGIServlet extends HttpServlet {
         if (getServletConfig().getInitParameter("envHttpHeaders") != null) {
             envHttpHeadersPattern =
                     Pattern.compile(getServletConfig().getInitParameter("envHttpHeaders"));
+        }
+
+        if (getServletConfig().getInitParameter("enableCmdLineArguments") != null) {
+            enableCmdLineArguments =
+                    Boolean.parseBoolean(config.getInitParameter("enableCmdLineArguments"));
+        }
+
+        if (getServletConfig().getInitParameter("cgiMethods") != null) {
+            String paramValue = getServletConfig().getInitParameter("cgiMethods");
+            paramValue = paramValue.trim();
+            if ("*".equals(paramValue)) {
+                cgiMethodsAll = true;
+            } else {
+                String[] methods = paramValue.split(",");
+                for (String method : methods) {
+                    String trimmedMethod = method.trim();
+                    cgiMethods.add(trimmedMethod);
+                }
+            }
+        } else {
+            cgiMethods.add("GET");
+            cgiMethods.add("POST");
+        }
+
+        if (getServletConfig().getInitParameter("cmdLineArgumentsEncoded") != null) {
+            cmdLineArgumentsEncodedPattern =
+                    Pattern.compile(getServletConfig().getInitParameter("cmdLineArgumentsEncoded"));
+        }
+
+        String value = getServletConfig().getInitParameter("cmdLineArgumentsDecoded");
+        if (ALLOW_ANY_PATTERN.equals(value)) {
+            // Optimisation for case where anything is allowed
+            cmdLineArgumentsDecodedPattern = null;
+        } else if (value != null) {
+            cmdLineArgumentsDecodedPattern = Pattern.compile(value);
         }
     }
 
@@ -524,9 +622,20 @@ public final class CGIServlet extends HttpServlet {
      * @exception  IOException  if a read/write exception occurs
      */
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse res)
-        throws IOException, ServletException {
-        doGet(req, res);
+    protected void service(HttpServletRequest req, HttpServletResponse res)
+            throws ServletException, IOException {
+
+        String method = req.getMethod();
+        if (cgiMethodsAll || cgiMethods.contains(method)) {
+            doGet(req, res);
+        } else if (DEFAULT_SUPER_METHODS.contains(method)){
+            // If the CGI servlet is explicitly configured to handle one of
+            // these methods it will be handled in the previous condition
+            super.service(req, res);
+        } else {
+            // Unsupported method
+            res.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+        }
     }
 
 
@@ -649,17 +758,20 @@ public final class CGIServlet extends HttpServlet {
         protected CGIEnvironment(HttpServletRequest req,
                                  ServletContext context) throws IOException {
             setupFromContext(context);
-            setupFromRequest(req);
+            boolean valid = setupFromRequest(req);
 
-            this.valid = setCGIEnvironment(req);
+            if (valid) {
+                valid = setCGIEnvironment(req);
+            }
 
-            if (this.valid) {
+            if (valid) {
                 workingDirectory = new File(command.substring(0,
                       command.lastIndexOf(File.separator)));
             } else {
                 workingDirectory = null;
             }
 
+            this.valid = valid;
         }
 
 
@@ -681,9 +793,13 @@ public final class CGIServlet extends HttpServlet {
          *
          * @param  req   HttpServletRequest for information provided by
          *               the Servlet API
+         *
+         * @return true if the request was parsed without error, false if there
+         *           was a problem
+
          * @throws UnsupportedEncodingException Unknown encoding
          */
-        protected void setupFromRequest(HttpServletRequest req)
+        protected boolean setupFromRequest(HttpServletRequest req)
                 throws UnsupportedEncodingException {
 
             boolean isIncluded = false;
@@ -714,9 +830,8 @@ public final class CGIServlet extends HttpServlet {
             // does not contain an unencoded "=" this is an indexed query.
             // The parsed query string becomes the command line parameters
             // for the cgi command.
-            if (req.getMethod().equals("GET")
-                || req.getMethod().equals("POST")
-                || req.getMethod().equals("HEAD")) {
+            if (enableCmdLineArguments && (req.getMethod().equals("GET")
+                || req.getMethod().equals("POST") || req.getMethod().equals("HEAD"))) {
                 String qs;
                 if (isIncluded) {
                     qs = (String) req.getAttribute(
@@ -726,12 +841,32 @@ public final class CGIServlet extends HttpServlet {
                 }
                 if (qs != null && qs.indexOf('=') == -1) {
                     StringTokenizer qsTokens = new StringTokenizer(qs, "+");
-                    while ( qsTokens.hasMoreTokens() ) {
-                        cmdLineParameters.add(URLDecoder.decode(qsTokens.nextToken(),
-                                              parameterEncoding));
+                    while (qsTokens.hasMoreTokens()) {
+                        String encodedArgument = qsTokens.nextToken();
+                        if (!cmdLineArgumentsEncodedPattern.matcher(encodedArgument).matches()) {
+                            if (log.isDebugEnabled()) {
+                                log.debug(sm.getString("cgiServlet.invalidArgumentEncoded",
+                                        encodedArgument, cmdLineArgumentsEncodedPattern.toString()));
+                            }
+                            return false;
+                        }
+
+                        String decodedArgument = URLDecoder.decode(encodedArgument, parameterEncoding);
+                        if (cmdLineArgumentsDecodedPattern != null &&
+                                !cmdLineArgumentsDecodedPattern.matcher(decodedArgument).matches()) {
+                            if (log.isDebugEnabled()) {
+                                log.debug(sm.getString("cgiServlet.invalidArgumentDecoded",
+                                        decodedArgument, cmdLineArgumentsDecodedPattern.toString()));
+                            }
+                            return false;
+                        }
+
+                        cmdLineParameters.add(decodedArgument);
                     }
                 }
             }
+
+            return true;
         }
 
 
@@ -1038,7 +1173,6 @@ public final class CGIServlet extends HttpServlet {
             this.env = envp;
 
             return true;
-
         }
 
         /**
@@ -1655,7 +1789,7 @@ public final class CGIServlet extends HttpServlet {
                         }
                     }
                 } //replacement for Process.waitFor()
-                
+
             } catch (IOException e){
                 log.warn(sm.getString("cgiServlet.runFail"), e);
                 throw e;
