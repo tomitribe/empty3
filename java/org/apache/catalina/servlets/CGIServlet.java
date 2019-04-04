@@ -31,11 +31,14 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.regex.Pattern;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
@@ -50,6 +53,10 @@ import javax.servlet.http.HttpSession;
 
 import org.apache.catalina.Globals;
 import org.apache.catalina.util.IOTools;
+import org.apache.juli.logging.Log;
+import org.apache.juli.logging.LogFactory;
+import org.apache.tomcat.util.res.StringManager;
+import org.apache.tomcat.util.compat.JrePlatform;
 
 
 /**
@@ -244,10 +251,31 @@ import org.apache.catalina.util.IOTools;
 
 public final class CGIServlet extends HttpServlet {
 
+    private static final Log log = LogFactory.getLog(CGIServlet.class);
+    private static final StringManager sm = StringManager.getManager(Constants.Package);
+    
     /* some vars below copied from Craig R. McClanahan's InvokerServlet */
 
     /** the debugging detail level for this servlet. */
     private int debug = 0;
+    private static final Set<String> DEFAULT_SUPER_METHODS = new HashSet<String>();
+    private static final Pattern DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN;
+    private static final String ALLOW_ANY_PATTERN = ".*";
+
+    static {
+        DEFAULT_SUPER_METHODS.add("HEAD");
+        DEFAULT_SUPER_METHODS.add("OPTIONS");
+        DEFAULT_SUPER_METHODS.add("TRACE");
+
+        if (JrePlatform.IS_WINDOWS) {
+            DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN = Pattern.compile("[a-zA-Z0-9\\Q-_.\\/:\\E]+");
+        } else {
+            // No restrictions
+            DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN = null;
+        }
+
+    }
+
 
     /**
      *  The CGI search path will start at
@@ -267,6 +295,11 @@ public final class CGIServlet extends HttpServlet {
     private String parameterEncoding =
         System.getProperty("file.encoding", "UTF-8");
 
+    /* The HTTP methods this Servlet will pass to the CGI script */
+    private Set<String> cgiMethods = new HashSet<String>();
+    private boolean cgiMethodsAll = false;
+
+
     /**
      * The time (in milliseconds) to wait for the reading of stderr to complete
      * before terminating the CGI process.
@@ -278,6 +311,31 @@ public final class CGIServlet extends HttpServlet {
 
     /** the shell environment variables to be passed to the CGI script */
     Hashtable<String,String> shellEnv = new Hashtable<String,String>();
+
+    /**
+     * Enable creation of script command line arguments from query-string.
+     * See https://tools.ietf.org/html/rfc3875#section-4.4
+     * 4.4.  The Script Command Line
+     */
+    private boolean enableCmdLineArguments = false;
+
+    /**
+     * Limits the encoded form of individual command line arguments. By default
+     * values are limited to those allowed by the RFC.
+     * See https://tools.ietf.org/html/rfc3875#section-4.4
+     *
+     * Uses \Q...\E to avoid individual quoting.
+     */
+    private Pattern cmdLineArgumentsEncodedPattern =
+            Pattern.compile("[a-zA-Z0-9\\Q%;/?:@&,$-_.!~*'()\\E]+");
+
+    /**
+     * Limits the decoded form of individual command line arguments. Default
+     * varies by platform.
+     */
+    private Pattern cmdLineArgumentsDecodedPattern = DEFAULT_CMD_LINE_ARGUMENTS_DECODED_PATTERN;
+
+
 
     /**
      * Sets instance variables.
@@ -317,6 +375,17 @@ public final class CGIServlet extends HttpServlet {
             shellEnv.putAll(System.getenv());
         }
 
+        Enumeration<String> e = config.getInitParameterNames();
+        while(e.hasMoreElements()) {
+            String initParamName = e.nextElement();
+            if (initParamName.startsWith("environment-variable-")) {
+                if (initParamName.length() == 21) {
+                    throw new ServletException(sm.getString("cgiServlet.emptyEnvVarName"));
+                }
+                shellEnv.put(initParamName.substring(21), config.getInitParameter(initParamName));
+            }
+        }
+
         if (getServletConfig().getInitParameter("executable") != null) {
             cgiExecutable = getServletConfig().getInitParameter("executable");
         }
@@ -343,213 +412,197 @@ public final class CGIServlet extends HttpServlet {
                     "stderrTimeout"));
         }
 
+        if (getServletConfig().getInitParameter("enableCmdLineArguments") != null) {
+            enableCmdLineArguments =
+                    Boolean.parseBoolean(config.getInitParameter("enableCmdLineArguments"));
+        }
+
+        if (getServletConfig().getInitParameter("cgiMethods") != null) {
+            String paramValue = getServletConfig().getInitParameter("cgiMethods");
+            paramValue = paramValue.trim();
+            if ("*".equals(paramValue)) {
+                cgiMethodsAll = true;
+            } else {
+                String[] methods = paramValue.split(",");
+                for (String method : methods) {
+                    String trimmedMethod = method.trim();
+                    cgiMethods.add(trimmedMethod);
+                }
+            }
+        } else {
+            cgiMethods.add("GET");
+            cgiMethods.add("POST");
+        }
+
+        if (getServletConfig().getInitParameter("cmdLineArgumentsEncoded") != null) {
+            cmdLineArgumentsEncodedPattern =
+                    Pattern.compile(getServletConfig().getInitParameter("cmdLineArgumentsEncoded"));
+        }
+
+        String value = getServletConfig().getInitParameter("cmdLineArgumentsDecoded");
+        if (ALLOW_ANY_PATTERN.equals(value)) {
+            // Optimisation for case where anything is allowed
+            cmdLineArgumentsDecodedPattern = null;
+        } else if (value != null) {
+            cmdLineArgumentsDecodedPattern = Pattern.compile(value);
+        }
     }
 
 
 
     /**
-     * Prints out important Servlet API and container information
+     * Logs important Servlet API and container information.
      *
      * <p>
      * Copied from SnoopAllServlet by Craig R. McClanahan
      * </p>
      *
-     * @param  out    ServletOutputStream as target of the information
+     * @param  out    Unused
      * @param  req    HttpServletRequest object used as source of information
-     * @param  res    HttpServletResponse object currently not used but could
-     *                provide future information
+     * @param  res    Unused
      *
      * @exception  IOException  if a write operation exception occurs
      *
+     * @deprecated Use {@link #printServletEnvironment(HttpServletRequest)}.
+     *             This will be removed in Tomcat 8.5.X onwards
      */
+    @Deprecated
     protected void printServletEnvironment(ServletOutputStream out,
-        HttpServletRequest req, HttpServletResponse res) throws IOException {
+            HttpServletRequest req, HttpServletResponse res) throws IOException {
+        printServletEnvironment(req);
+    }
+
+    /**
+     * Logs important Servlet API and container information.
+     *
+     * <p>
+     * Based on SnoopAllServlet by Craig R. McClanahan
+     * </p>
+     *
+     * @param  req    HttpServletRequest object used as source of information
+     *
+     * @exception  IOException  if a write operation exception occurs
+     */
+    private void printServletEnvironment(HttpServletRequest req) throws IOException {
 
         // Document the properties from ServletRequest
-        out.println("<h1>ServletRequest Properties</h1>");
-        out.println("<ul>");
-        Enumeration attrs = req.getAttributeNames();
+        log.trace("ServletRequest Properties");
+        @SuppressWarnings("unchecked")
+        Enumeration<String> attrs = req.getAttributeNames();
         while (attrs.hasMoreElements()) {
-            String attr = (String) attrs.nextElement();
-            out.println("<li><b>attribute</b> " + attr + " = " +
-                           req.getAttribute(attr));
+            String attr = attrs.nextElement();
+            log.trace("Request Attribute: " + attr + ": [ " + req.getAttribute(attr) +"]");
         }
-        out.println("<li><b>characterEncoding</b> = " +
-                       req.getCharacterEncoding());
-        out.println("<li><b>contentLength</b> = " +
-                       req.getContentLength());
-        out.println("<li><b>contentType</b> = " +
-                       req.getContentType());
-        Enumeration locales = req.getLocales();
+        log.trace("Character Encoding: [" + req.getCharacterEncoding() + "]");
+        log.trace("Content Length: [" + req.getContentLength() + "]");
+        log.trace("Content Type: [" + req.getContentType() + "]");
+        @SuppressWarnings("unchecked")
+        Enumeration<Locale> locales = req.getLocales();
         while (locales.hasMoreElements()) {
-            Locale locale = (Locale) locales.nextElement();
-            out.println("<li><b>locale</b> = " + locale);
+            Locale locale = locales.nextElement();
+            log.trace("Locale: [" +locale + "]");
         }
-        Enumeration params = req.getParameterNames();
+        @SuppressWarnings("unchecked")
+        Enumeration<String> params = req.getParameterNames();
         while (params.hasMoreElements()) {
-            String param = (String) params.nextElement();
-            String values[] = req.getParameterValues(param);
-            for (int i = 0; i < values.length; i++)
-                out.println("<li><b>parameter</b> " + param + " = " +
-                               values[i]);
+            String param = params.nextElement();
+            for (String value : req.getParameterValues(param)) {
+                log.trace("Request Parameter: " + param + ":  [" + value + "]");
+            }
         }
-        out.println("<li><b>protocol</b> = " + req.getProtocol());
-        out.println("<li><b>remoteAddr</b> = " + req.getRemoteAddr());
-        out.println("<li><b>remoteHost</b> = " + req.getRemoteHost());
-        out.println("<li><b>scheme</b> = " + req.getScheme());
-        out.println("<li><b>secure</b> = " + req.isSecure());
-        out.println("<li><b>serverName</b> = " + req.getServerName());
-        out.println("<li><b>serverPort</b> = " + req.getServerPort());
-        out.println("</ul>");
-        out.println("<hr>");
+        log.trace("Protocol: [" + req.getProtocol() + "]");
+        log.trace("Remote Address: [" + req.getRemoteAddr() + "]");
+        log.trace("Remote Host: [" + req.getRemoteHost() + "]");
+        log.trace("Scheme: [" + req.getScheme() + "]");
+        log.trace("Secure: [" + req.isSecure() + "]");
+        log.trace("Server Name: [" + req.getServerName() + "]");
+        log.trace("Server Port: [" + req.getServerPort() + "]");
 
         // Document the properties from HttpServletRequest
-        out.println("<h1>HttpServletRequest Properties</h1>");
-        out.println("<ul>");
-        out.println("<li><b>authType</b> = " + req.getAuthType());
-        out.println("<li><b>contextPath</b> = " +
-                       req.getContextPath());
+        log.trace("HttpServletRequest Properties");
+        log.trace("Auth Type: [" + req.getAuthType() + "]");
+        log.trace("Context Path: [" + req.getContextPath() + "]");
         Cookie cookies[] = req.getCookies();
-        if (cookies!=null) {
-            for (int i = 0; i < cookies.length; i++)
-                out.println("<li><b>cookie</b> " + cookies[i].getName() +" = " +cookies[i].getValue());
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                log.trace("Cookie: " + cookie.getName() + ": [" + cookie.getValue() + "]");
+            }
         }
-        Enumeration headers = req.getHeaderNames();
+        @SuppressWarnings("unchecked")
+        Enumeration<String> headers = req.getHeaderNames();
         while (headers.hasMoreElements()) {
-            String header = (String) headers.nextElement();
-            out.println("<li><b>header</b> " + header + " = " +
-                           req.getHeader(header));
+            String header = headers.nextElement();
+            log.trace("HTTP Header: " + header + ": [" + req.getHeader(header) + "]");
         }
-        out.println("<li><b>method</b> = " + req.getMethod());
-        out.println("<li><a name=\"pathInfo\"><b>pathInfo</b></a> = "
-                    + req.getPathInfo());
-        out.println("<li><b>pathTranslated</b> = " +
-                       req.getPathTranslated());
-        out.println("<li><b>queryString</b> = " +
-                       req.getQueryString());
-        out.println("<li><b>remoteUser</b> = " +
-                       req.getRemoteUser());
-        out.println("<li><b>requestedSessionId</b> = " +
-                       req.getRequestedSessionId());
-        out.println("<li><b>requestedSessionIdFromCookie</b> = " +
-                       req.isRequestedSessionIdFromCookie());
-        out.println("<li><b>requestedSessionIdFromURL</b> = " +
-                       req.isRequestedSessionIdFromURL());
-        out.println("<li><b>requestedSessionIdValid</b> = " +
-                       req.isRequestedSessionIdValid());
-        out.println("<li><b>requestURI</b> = " +
-                       req.getRequestURI());
-        out.println("<li><b>servletPath</b> = " +
-                       req.getServletPath());
-        out.println("<li><b>userPrincipal</b> = " +
-                       req.getUserPrincipal());
-        out.println("</ul>");
-        out.println("<hr>");
-
-        // Document the servlet request attributes
-        out.println("<h1>ServletRequest Attributes</h1>");
-        out.println("<ul>");
-        attrs = req.getAttributeNames();
-        while (attrs.hasMoreElements()) {
-            String attr = (String) attrs.nextElement();
-            out.println("<li><b>" + attr + "</b> = " +
-                           req.getAttribute(attr));
-        }
-        out.println("</ul>");
-        out.println("<hr>");
+        log.trace("Method: [" + req.getMethod() + "]");
+        log.trace("Path Info: [" + req.getPathInfo() + "]");
+        log.trace("Path Translated: [" + req.getPathTranslated() + "]");
+        log.trace("Query String: [" + req.getQueryString() + "]");
+        log.trace("Remote User: [" + req.getRemoteUser() + "]");
+        log.trace("Requested Session ID: [" + req.getRequestedSessionId() + "]");
+        log.trace("Requested Session ID From Cookie: [" +
+                req.isRequestedSessionIdFromCookie() + "]");
+        log.trace("Requested Session ID From URL: [" + req.isRequestedSessionIdFromURL() + "]");
+        log.trace("Requested Session ID Valid: [" + req.isRequestedSessionIdValid() + "]");
+        log.trace("Request URI: [" + req.getRequestURI() + "]");
+        log.trace("Servlet Path: [" + req.getServletPath() + "]");
+        log.trace("User Principal: [" + req.getUserPrincipal() + "]");
 
         // Process the current session (if there is one)
         HttpSession session = req.getSession(false);
         if (session != null) {
 
             // Document the session properties
-            out.println("<h1>HttpSession Properties</h1>");
-            out.println("<ul>");
-            out.println("<li><b>id</b> = " +
-                           session.getId());
-            out.println("<li><b>creationTime</b> = " +
-                           new Date(session.getCreationTime()));
-            out.println("<li><b>lastAccessedTime</b> = " +
-                           new Date(session.getLastAccessedTime()));
-            out.println("<li><b>maxInactiveInterval</b> = " +
-                           session.getMaxInactiveInterval());
-            out.println("</ul>");
-            out.println("<hr>");
+            log.trace("HttpSession Properties");
+            log.trace("ID: [" + session.getId() + "]");
+            log.trace("Creation Time: [" + new Date(session.getCreationTime()) + "]");
+            log.trace("Last Accessed Time: [" + new Date(session.getLastAccessedTime()) + "]");
+            log.trace("Max Inactive Interval: [" + session.getMaxInactiveInterval() + "]");
 
             // Document the session attributes
-            out.println("<h1>HttpSession Attributes</h1>");
-            out.println("<ul>");
             attrs = session.getAttributeNames();
             while (attrs.hasMoreElements()) {
-                String attr = (String) attrs.nextElement();
-                out.println("<li><b>" + attr + "</b> = " +
-                               session.getAttribute(attr));
+                String attr = attrs.nextElement();
+                log.trace("Session Attribute: " + attr + ": [" + session.getAttribute(attr) + "]");
             }
-            out.println("</ul>");
-            out.println("<hr>");
-
         }
 
         // Document the servlet configuration properties
-        out.println("<h1>ServletConfig Properties</h1>");
-        out.println("<ul>");
-        out.println("<li><b>servletName</b> = " +
-                       getServletConfig().getServletName());
-        out.println("</ul>");
-        out.println("<hr>");
+        log.trace("ServletConfig Properties");
+        log.trace("Servlet Name: [" + getServletConfig().getServletName() + "]");
 
         // Document the servlet configuration initialization parameters
-        out.println("<h1>ServletConfig Initialization Parameters</h1>");
-        out.println("<ul>");
         params = getServletConfig().getInitParameterNames();
         while (params.hasMoreElements()) {
-            String param = (String) params.nextElement();
+            String param = params.nextElement();
             String value = getServletConfig().getInitParameter(param);
-            out.println("<li><b>" + param + "</b> = " + value);
+            log.trace("Servlet Init Param: " + param + ": [" + value + "]");
         }
-        out.println("</ul>");
-        out.println("<hr>");
 
         // Document the servlet context properties
-        out.println("<h1>ServletContext Properties</h1>");
-        out.println("<ul>");
-        out.println("<li><b>majorVersion</b> = " +
-                       getServletContext().getMajorVersion());
-        out.println("<li><b>minorVersion</b> = " +
-                       getServletContext().getMinorVersion());
-        out.println("<li><b>realPath('/')</b> = " +
-                       getServletContext().getRealPath("/"));
-        out.println("<li><b>serverInfo</b> = " +
-                       getServletContext().getServerInfo());
-        out.println("</ul>");
-        out.println("<hr>");
+        log.trace("ServletContext Properties");
+        log.trace("Major Version: [" + getServletContext().getMajorVersion() + "]");
+        log.trace("Minor Version: [" + getServletContext().getMinorVersion() + "]");
+        log.trace("Real Path for '/': [" + getServletContext().getRealPath("/") + "]");
+        log.trace("Server Info: [" + getServletContext().getServerInfo() + "]");
 
         // Document the servlet context initialization parameters
-        out.println("<h1>ServletContext Initialization Parameters</h1>");
-        out.println("<ul>");
+        log.trace("ServletContext Initialization Parameters");
         params = getServletContext().getInitParameterNames();
         while (params.hasMoreElements()) {
-            String param = (String) params.nextElement();
+            String param = params.nextElement();
             String value = getServletContext().getInitParameter(param);
-            out.println("<li><b>" + param + "</b> = " + value);
+            log.trace("Servlet Context Init Param: " + param + ": [" + value + "]");
         }
-        out.println("</ul>");
-        out.println("<hr>");
 
         // Document the servlet context attributes
-        out.println("<h1>ServletContext Attributes</h1>");
-        out.println("<ul>");
+        log.trace("ServletContext Attributes");
         attrs = getServletContext().getAttributeNames();
         while (attrs.hasMoreElements()) {
-            String attr = (String) attrs.nextElement();
-            out.println("<li><b>" + attr + "</b> = " +
-                           getServletContext().getAttribute(attr));
+            String attr = attrs.nextElement();
+            log.trace("Servlet Context Attribute: " + attr +
+                    ": [" + getServletContext().getAttribute(attr) + "]");
         }
-        out.println("</ul>");
-        out.println("<hr>");
-
-
-
     }
 
 
@@ -566,9 +619,20 @@ public final class CGIServlet extends HttpServlet {
      * @see javax.servlet.http.HttpServlet
      *
      */
-    protected void doPost(HttpServletRequest req, HttpServletResponse res)
-        throws IOException, ServletException {
-        doGet(req, res);
+    protected void service(HttpServletRequest req, HttpServletResponse res)
+            throws ServletException, IOException {
+
+        String method = req.getMethod();
+        if (cgiMethodsAll || cgiMethods.contains(method)) {
+            doGet(req, res);
+        } else if (DEFAULT_SUPER_METHODS.contains(method)){
+            // If the CGI servlet is explicitly configured to handle one of
+            // these methods it will be handled in the previous condition
+            super.service(req, res);
+        } else {
+            // Unsupported method
+            res.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+        }
     }
 
 
@@ -721,15 +785,20 @@ public final class CGIServlet extends HttpServlet {
         protected CGIEnvironment(HttpServletRequest req,
                                  ServletContext context) throws IOException {
             setupFromContext(context);
-            setupFromRequest(req);
+            boolean valid = setupFromRequest(req);
 
-            this.valid = setCGIEnvironment(req);
-
-            if (this.valid) {
-                workingDirectory = new File(command.substring(0,
-                      command.lastIndexOf(File.separator)));
+            if (valid) {
+                valid = setCGIEnvironment(req);
             }
 
+            if (valid) {
+                workingDirectory = new File(command.substring(0,
+                      command.lastIndexOf(File.separator)));
+            } else {
+                workingDirectory = null;
+            }
+
+            this.valid = valid;
         }
 
 
@@ -753,9 +822,13 @@ public final class CGIServlet extends HttpServlet {
          *
          * @param  req   HttpServletRequest for information provided by
          *               the Servlet API
+         *
+         * @return true if the request was parsed without error, false if there
+         *           was a problem
+
          * @throws UnsupportedEncodingException 
          */
-        protected void setupFromRequest(HttpServletRequest req)
+        protected boolean setupFromRequest(HttpServletRequest req)
                 throws UnsupportedEncodingException {
 
             boolean isIncluded = false;
@@ -786,9 +859,8 @@ public final class CGIServlet extends HttpServlet {
             // does not contain an unencoded "=" this is an indexed query.
             // The parsed query string becomes the command line parameters
             // for the cgi command.
-            if (req.getMethod().equals("GET")
-                || req.getMethod().equals("POST")
-                || req.getMethod().equals("HEAD")) {
+            if (enableCmdLineArguments && (req.getMethod().equals("GET")
+                || req.getMethod().equals("POST") || req.getMethod().equals("HEAD"))) {
                 String qs;
                 if (isIncluded) {
                     qs = (String) req.getAttribute(
@@ -798,12 +870,32 @@ public final class CGIServlet extends HttpServlet {
                 }
                 if (qs != null && qs.indexOf("=") == -1) {
                     StringTokenizer qsTokens = new StringTokenizer(qs, "+");
-                    while ( qsTokens.hasMoreTokens() ) {
-                        cmdLineParameters.add(URLDecoder.decode(qsTokens.nextToken(),
-                                              parameterEncoding));
+                    while (qsTokens.hasMoreTokens()) {
+                        String encodedArgument = qsTokens.nextToken();
+                        if (!cmdLineArgumentsEncodedPattern.matcher(encodedArgument).matches()) {
+                            if (log.isDebugEnabled()) {
+                                log.debug(sm.getString("cgiServlet.invalidArgumentEncoded",
+                                        encodedArgument, cmdLineArgumentsEncodedPattern.toString()));
+                            }
+                            return false;
+                        }
+
+                        String decodedArgument = URLDecoder.decode(encodedArgument, parameterEncoding);
+                        if (cmdLineArgumentsDecodedPattern != null &&
+                                !cmdLineArgumentsDecodedPattern.matcher(decodedArgument).matches()) {
+                            if (log.isDebugEnabled()) {
+                                log.debug(sm.getString("cgiServlet.invalidArgumentDecoded",
+                                        decodedArgument, cmdLineArgumentsDecodedPattern.toString()));
+                            }
+                            return false;
+                        }
+
+                        cmdLineParameters.add(decodedArgument);
                     }
                 }
             }
+
+            return true;
         }
 
 
@@ -1125,7 +1217,6 @@ public final class CGIServlet extends HttpServlet {
             this.env = envp;
 
             return true;
-
         }
 
         /**
