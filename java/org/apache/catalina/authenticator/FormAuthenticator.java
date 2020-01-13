@@ -28,6 +28,7 @@ import java.util.Locale;
 
 import javax.servlet.RequestDispatcher;
 import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.catalina.Globals;
@@ -129,34 +130,7 @@ public class FormAuthenticator
 
         // References to objects we will need later
         Session session = null;
-
-        // Have we already authenticated someone?
-        Principal principal = request.getUserPrincipal();
-        String ssoId = (String) request.getNote(Constants.REQ_SSOID_NOTE);
-        if (principal != null) {
-            if (log.isDebugEnabled())
-                log.debug("Already authenticated '" +
-                    principal.getName() + "'");
-            // Associate the session with any existing SSO session
-            if (ssoId != null)
-                associate(ssoId, request.getSessionInternal(true));
-            return (true);
-        }
-
-        // Is there an SSO session against which we can try to reauthenticate?
-        if (ssoId != null) {
-            if (log.isDebugEnabled())
-                log.debug("SSO Id " + ssoId + " set; attempting " +
-                          "reauthentication");
-            // Try to reauthenticate using data cached by SSO.  If this fails,
-            // either the original SSO logon was of DIGEST or SSL (which
-            // we can't reauthenticate ourselves because there is no
-            // cached username and password), or the realm denied
-            // the user's reauthentication for some reason.
-            // In either case we have to prompt the user for a logon */
-            if (reauthenticateFromSSO(ssoId, request))
-                return true;
-        }
+        Principal principal = null;
 
         // Have we authenticated this user before but have caching disabled?
         if (!cache) {
@@ -173,11 +147,8 @@ public class FormAuthenticator
                 principal =
                     context.getRealm().authenticate(username, password);
                 if (principal != null) {
-                    session.setNote(Constants.FORM_PRINCIPAL_NOTE, principal);
+                    register(request, response, principal, HttpServletRequest.FORM_AUTH, username, password);
                     if (!matchRequest(request)) {
-                        register(request, response, principal,
-                                 Constants.FORM_METHOD,
-                                 username, password);
                         return (true);
                     }
                 }
@@ -194,17 +165,6 @@ public class FormAuthenticator
                 log.debug("Restore request from session '"
                           + session.getIdInternal() 
                           + "'");
-            principal = (Principal)
-                session.getNote(Constants.FORM_PRINCIPAL_NOTE);
-            register(request, response, principal, Constants.FORM_METHOD,
-                     (String) session.getNote(Constants.SESS_USERNAME_NOTE),
-                     (String) session.getNote(Constants.SESS_PASSWORD_NOTE));
-            // If we're caching principals we no longer need the username
-            // and password in the session, so remove them
-            if (cache) {
-                session.removeNote(Constants.SESS_USERNAME_NOTE);
-                session.removeNote(Constants.SESS_PASSWORD_NOTE);
-            }
             if (restoreRequest(request, session)) {
                 if (log.isDebugEnabled())
                     log.debug("Proceed to restored request");
@@ -217,6 +177,12 @@ public class FormAuthenticator
             }
         }
 
+        // This check has to be after the previous check for a matching request
+        // because that matching request may also include a cached Principal.
+        if (checkForCachedAuthentication(request, response, true)) {
+            return true;
+        }
+        
         // Acquire references to objects we will need to evaluate
         MessageBytes uriMB = MessageBytes.newInstance();
         CharChunk uriCC = uriMB.getCharChunk();
@@ -292,12 +258,7 @@ public class FormAuthenticator
             return (false);
         }
 
-        // Save the authenticated Principal in our session
-        session.setNote(Constants.FORM_PRINCIPAL_NOTE, principal);
-
-        // Save the username and password as well
-        session.setNote(Constants.SESS_USERNAME_NOTE, username);
-        session.setNote(Constants.SESS_PASSWORD_NOTE, password);
+        register(request, response, principal, HttpServletRequest.FORM_AUTH, username, password);
 
         // Redirect the user to the original request URI (which will cause
         // the original request to be restored)
@@ -310,11 +271,43 @@ public class FormAuthenticator
         else
             response.sendRedirect(response.encodeRedirectURL(requestURI));
         return (false);
-
     }
 
 
-    // ------------------------------------------------------ Protected Methods
+    private boolean checkForCachedAuthentication(Request request, Response response, boolean b) {
+    	// Have we already authenticated someone?
+        Principal principal = request.getUserPrincipal();
+        String ssoId = (String) request.getNote(Constants.REQ_SSOID_NOTE);
+        if (principal != null) {
+            if (log.isDebugEnabled())
+                log.debug("Already authenticated '" +
+                    principal.getName() + "'");
+            // Associate the session with any existing SSO session
+            if (ssoId != null)
+                associate(ssoId, request.getSessionInternal(true));
+            return (true);
+        }
+
+        // Is there an SSO session against which we can try to reauthenticate?
+        if (ssoId != null) {
+            if (log.isDebugEnabled())
+                log.debug("SSO Id " + ssoId + " set; attempting " +
+                          "reauthentication");
+            // Try to reauthenticate using data cached by SSO.  If this fails,
+            // either the original SSO logon was of DIGEST or SSL (which
+            // we can't reauthenticate ourselves because there is no
+            // cached username and password), or the realm denied
+            // the user's reauthentication for some reason.
+            // In either case we have to prompt the user for a logon */
+            if (reauthenticateFromSSO(ssoId, request))
+                return true;
+        }
+
+        return false;
+	}
+
+
+	// ------------------------------------------------------ Protected Methods
 
 
     /**
@@ -417,7 +410,7 @@ public class FormAuthenticator
           return (false);
 
       // Is there a saved principal?
-      if (session.getNote(Constants.FORM_PRINCIPAL_NOTE) == null)
+      if (cache && session.getPrincipal() == null || !cache && request.getPrincipal() == null)
           return (false);
 
       // Does the request URI match?
@@ -445,7 +438,6 @@ public class FormAuthenticator
         SavedRequest saved = (SavedRequest)
             session.getNote(Constants.FORM_REQUEST_NOTE);
         session.removeNote(Constants.FORM_REQUEST_NOTE);
-        session.removeNote(Constants.FORM_PRINCIPAL_NOTE);
         if (saved == null)
             return (false);
 
