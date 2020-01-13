@@ -44,6 +44,15 @@
 <!-- Section names:
  General, Catalina, Coyote, Jasper, Cluster, Web applications, Other
 -->
+<section name="Tomcat 6.0.53-SP.1">
+  <subsection name="Catalina">
+    <changelog>
+      <fix>
+        Refactor JMX remote RMI registry creation. (remm)
+      </fix>
+    </changelog>
+  </subsection>
+</section>
 <section name="Tomcat 6.0.53 (violetagg)">
   <subsection name="Coyote">
     <changelog>
