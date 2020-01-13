@@ -30,6 +30,7 @@ import java.util.Random;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.catalina.Authenticator;
 import org.apache.catalina.Container;
@@ -46,6 +47,7 @@ import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
 import org.apache.catalina.deploy.LoginConfig;
 import org.apache.catalina.deploy.SecurityConstraint;
+import org.apache.catalina.realm.GenericPrincipal;
 import org.apache.catalina.util.DateTool;
 import org.apache.catalina.util.LifecycleSupport;
 import org.apache.catalina.util.StringManager;
@@ -760,10 +762,11 @@ public abstract class AuthenticatorBase
         }
 
         // Cache the authentication information in our session, if any
-        if (cache) {
-            if (session != null) {
+        if (session != null) {
+            if (cache) {
                 session.setAuthType(authType);
                 session.setPrincipal(principal);
+            } else {
                 if (username != null)
                     session.setNote(Constants.SESS_USERNAME_NOTE, username);
                 else
@@ -926,6 +929,4 @@ public abstract class AuthenticatorBase
         sso = null;
 
     }
-
-
 }
