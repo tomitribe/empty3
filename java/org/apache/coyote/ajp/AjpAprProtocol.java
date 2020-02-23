@@ -34,6 +34,7 @@ import org.apache.coyote.ActionCode;
 import org.apache.coyote.Adapter;
 import org.apache.coyote.RequestGroupInfo;
 import org.apache.coyote.RequestInfo;
+import org.apache.tomcat.util.compat.JreCompat;
 import org.apache.tomcat.util.modeler.Registry;
 import org.apache.tomcat.util.net.AbstractEndpoint;
 import org.apache.tomcat.util.net.AprEndpoint;
@@ -68,6 +69,8 @@ public class AjpAprProtocol extends AbstractProtocol
 
 
     public AjpAprProtocol() {
+        endpoint = new AprEndpoint();
+        endpoint.setAddress(JreCompat.getInstance().getLoopbackAddress());
         cHandler = new AjpConnectionHandler(this);
         setSoLinger(Constants.DEFAULT_CONNECTION_LINGER);
         setSoTimeout(Constants.DEFAULT_CONNECTION_TIMEOUT);
