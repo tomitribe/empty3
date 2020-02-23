@@ -36,6 +36,10 @@
           description="The certificate encoding algorithm to be used"
                  type="java.lang.String"/>
 
+    <attribute   name="allowedRequestAttributesPattern"
+          description="Regular expression that any custom request attributes muct match else the request will be rejected"
+                 type="java.lang.String"/>
+
     <attribute   name="allowTrace"
           description="Allow disabling TRACE method"
                  type="boolean"/>
@@ -177,9 +181,13 @@
                  type="java.lang.String"/>
 
     <attribute   name="secret"
-          description="Authentication secret (I guess ... not in Javadocs)"
+          description="Authentication secret"
             readable = "false" 
                  type="java.lang.String"/>
+                 
+    <attribute   name="secretRequired"
+          description="Must secret be set to a non-null, non-zero-length String?"
+                 type="boolean"/>
 
     <attribute   name="secure"
           description="Is this a secure (SSL) Connector?"
