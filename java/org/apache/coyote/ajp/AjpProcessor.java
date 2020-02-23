@@ -333,8 +333,17 @@ public class AjpProcessor implements ActionHook {
     /**
      * Required secret.
      */
+    @Deprecated
     protected String requiredSecret = null;
-    public void setRequiredSecret(String requiredSecret) { this.requiredSecret = requiredSecret; }
+    protected String secret = null;
+    public void setSecret(String secret) {
+        this.secret = secret;
+        this.requiredSecret = secret;
+    }
+    @Deprecated
+    public void setRequiredSecret(String requiredSecret) {
+        setSecret(requiredSecret);
+    }
 
 
     /**
@@ -762,7 +771,7 @@ public class AjpProcessor implements ActionHook {
         }
 
         // Decode extra attributes
-        boolean secret = false;
+        boolean secretPresentInRequest = false;
         byte attributeCode;
         while ((attributeCode = requestHeaderMessage.getByte())
                 != Constants.SC_A_ARE_DONE) {
@@ -860,9 +869,9 @@ public class AjpProcessor implements ActionHook {
 
             case Constants.SC_A_SECRET:
                 requestHeaderMessage.getBytes(tmpMB);
-                if (requiredSecret != null) {
-                    secret = true;
-                    if (!tmpMB.equals(requiredSecret)) {
+                if (secret != null) {
+                    secretPresentInRequest = true;
+                    if (!tmpMB.equals(secret)) {
                         response.setStatus(403);
                         error = true;
                     }
@@ -878,7 +887,7 @@ public class AjpProcessor implements ActionHook {
         }
 
         // Check if secret was submitted if required
-        if ((requiredSecret != null) && !secret) {
+        if ((secret != null) && !secretPresentInRequest) {
             response.setStatus(403);
             error = true;
         }
