@@ -159,13 +159,6 @@ public class AjpProtocol extends AbstractProtocol
     /** Start the protocol
      */
     public void init() throws Exception {
-    	if (getSecretRequired()) {
-            String secret = getSecret();
-            if (secret == null || secret.length() == 0) {
-                throw new IllegalArgumentException(sm.getString("ajpprotocol.nosecret"));
-            }
-        }
-    	
         endpoint.setName(getName());
         endpoint.setHandler(cHandler);
 
@@ -182,6 +175,13 @@ public class AjpProtocol extends AbstractProtocol
 
 
     public void start() throws Exception {
+    	if (getSecretRequired()) {
+            String secret = getSecret();
+            if (secret == null || secret.length() == 0) {
+                throw new IllegalArgumentException(sm.getString("ajpprotocol.nosecret"));
+            }
+        }
+    	
         if (this.domain != null ) {
             try {
                 tpOname = new ObjectName
