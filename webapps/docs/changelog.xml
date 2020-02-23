@@ -43,7 +43,7 @@
 <!-- Section names:
  General, Catalina, Coyote, Jasper, Cluster, Web applications, Other
 -->
-<section name="Tomcat 6.0.53-SP.1">
+<section name="Tomcat 6.0.44-SP.1">
   <subsection name="Catalina">
     <changelog>
       <fix>
@@ -51,8 +51,16 @@
       </fix>
     </changelog>
   </subsection>
+  <subsection name="Coyote">
+    <changelog>
+      <update>
+        Disable (comment out in server.xml) the AJP/1.3 connector by default.
+        (markt)
+      </update>
+    </changelog>
+  </subsection>
 </section>
-<section name="Tomcat 6.0.44 (jfclere)">
+<section name="Tomcat 6.0.44">
   <subsection name="Catalina">
     <changelog>
       <fix>
