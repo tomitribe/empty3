@@ -37,6 +37,7 @@ import org.apache.coyote.ActionHook;
 import org.apache.coyote.Adapter;
 import org.apache.coyote.RequestGroupInfo;
 import org.apache.coyote.RequestInfo;
+import org.apache.tomcat.util.compat.JreCompat;
 import org.apache.tomcat.util.modeler.Registry;
 import org.apache.tomcat.util.net.AbstractEndpoint;
 import org.apache.tomcat.util.net.JIoEndpoint;
@@ -70,6 +71,8 @@ public class AjpProtocol extends AbstractProtocol
 
 
     public AjpProtocol() {
+        endpoint = new JIoEndpoint();
+        endpoint.setAddress(JreCompat.getInstance().getLoopbackAddress());
         cHandler = new AjpConnectionHandler(this);
         setSoLinger(Constants.DEFAULT_CONNECTION_LINGER);
         setSoTimeout(Constants.DEFAULT_CONNECTION_TIMEOUT);
@@ -90,7 +93,7 @@ public class AjpProtocol extends AbstractProtocol
     /**
      * Associated java.io endpoint.
      */
-    protected JIoEndpoint endpoint = new JIoEndpoint();
+    protected JIoEndpoint endpoint;
 
     protected final AbstractEndpoint getEndpoint() {
         return endpoint;
