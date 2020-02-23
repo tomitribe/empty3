@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 import javax.management.MBeanRegistration;
 import javax.management.MBeanServer;
@@ -326,6 +327,19 @@ public class AjpAprProtocol extends AbstractProtocol
     public boolean getSecretRequired() {
         return secretRequired;
     }
+    
+    private Pattern allowedRequestAttributesPatternPattern;
+    public void setAllowedRequestAttributesPattern(String allowedRequestAttributesPattern) {
+        this.allowedRequestAttributesPatternPattern = Pattern.compile(allowedRequestAttributesPattern);
+    }
+    public String getAllowedRequestAttributesPattern() {
+        return allowedRequestAttributesPatternPattern.pattern();
+    }
+    protected Pattern getAllowedRequestAttributesPatternPattern() {
+        return allowedRequestAttributesPatternPattern;
+    }
+
+
 
     /**
      * AJP packet size.
@@ -480,6 +494,7 @@ public class AjpAprProtocol extends AbstractProtocol
             processor.setSecret(proto.getSecret());
             processor.setClientCertProvider(proto.getClientCertProvider());
             processor.setMaxCookieCount(proto.getMaxCookieCount());
+            processor.setAllowedRequestAttributesPatternPattern(proto.getAllowedRequestAttributesPatternPattern());
             register(processor);
             return processor;
         }

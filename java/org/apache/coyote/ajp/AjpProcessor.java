@@ -27,6 +27,11 @@ import java.net.Socket;
 import java.security.NoSuchProviderException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -44,6 +49,7 @@ import org.apache.tomcat.util.buf.MessageBytes;
 import org.apache.tomcat.util.http.HttpMessages;
 import org.apache.tomcat.util.http.MimeHeaders;
 import org.apache.tomcat.util.net.JIoEndpoint;
+import org.apache.tomcat.util.net.SSLSupport;
 import org.apache.tomcat.util.res.StringManager;
 
 
@@ -268,6 +274,8 @@ public class AjpProcessor implements ActionHook {
      * Direct buffer used for sending right away a pong message.
      */
     protected static final byte[] pongMessageArray;
+    
+    private static final Set<String> javaxAttributes;
 
 
     /**
@@ -315,6 +323,14 @@ public class AjpProcessor implements ActionHook {
         flushMessageArray = new byte[flushMessage.getLen()];
         System.arraycopy(flushMessage.getBuffer(), 0, flushMessageArray, 0,
                 flushMessage.getLen());
+        
+        // Build the Set of javax attributes
+        Set<String> s = new HashSet<String>();
+        s.add("javax.servlet.request.cipher_suite");
+        s.add("javax.servlet.request.key_size");
+        s.add("javax.servlet.request.ssl_session");
+        s.add("javax.servlet.request.X509Certificate");
+        javaxAttributes= Collections.unmodifiableSet(s);
 
     }
 
@@ -374,6 +390,10 @@ public class AjpProcessor implements ActionHook {
     public int getMaxCookieCount() { return maxCookieCount; }
     public void setMaxCookieCount(int maxCookieCount) { this.maxCookieCount = maxCookieCount; }
 
+    private Pattern allowedRequestAttributesPatternPattern;
+    public void setAllowedRequestAttributesPatternPattern(Pattern allowedRequestAttributesPatternPattern) {
+        this.allowedRequestAttributesPatternPattern = allowedRequestAttributesPatternPattern;
+    }
     
     // --------------------------------------------------------- Public Methods
 
@@ -803,8 +823,27 @@ public class AjpProcessor implements ActionHook {
                         request.setRemotePort(Integer.parseInt(v));
                     } catch (NumberFormatException nfe) {
                     }
+                } else if(n.equals(Constants.SC_A_SSL_PROTOCOL)) {
+                    request.setAttribute(SSLSupport.PROTOCOL_VERSION_KEY, v);
+                } else if (n.equals("JK_LB_ACTIVATION")) {
+                    request.setAttribute(n, v);
+                } else if (javaxAttributes.contains(n)) {
+                    request.setAttribute(n, v);
                 } else {
-                    request.setAttribute(n, v );
+                	// All 'known' attributes will be processed by the previous
+                    // blocks. Any remaining attribute is an 'arbitrary' one.
+                    if (allowedRequestAttributesPatternPattern == null) {
+                        response.setStatus(403);
+                        error = true;
+                    } else {
+                        Matcher m = allowedRequestAttributesPatternPattern.matcher(n);
+                        if (m.matches()) {
+                            request.setAttribute(n, v);
+                        } else {
+                            response.setStatus(403);
+                            error = true;
+                        }
+                    }
                 }
                 break;
 
