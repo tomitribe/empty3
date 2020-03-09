@@ -48,15 +48,15 @@ public class InternalInputBuffer extends AbstractInputBuffer {
     /**
      * Default constructor.
      */
-    public InternalInputBuffer(Request request) {
-        this(request, Constants.DEFAULT_HTTP_HEADER_BUFFER_SIZE);
+    public InternalInputBuffer(Request request, boolean rejectIllegalHeader) {
+        this(request, Constants.DEFAULT_HTTP_HEADER_BUFFER_SIZE, rejectIllegalHeader);
     }
 
 
     /**
      * Alternate constructor.
      */
-    public InternalInputBuffer(Request request, int headerBufferSize) {
+    public InternalInputBuffer(Request request, int headerBufferSize, boolean rejectIllegalHeader) {
 
         this.request = request;
         headers = request.getMimeHeaders();
@@ -71,6 +71,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
 
         parsingHeader = true;
         swallowInput = true;
+        this.rejectIllegalHeader = rejectIllegalHeader;
 
     }
 
@@ -538,6 +539,8 @@ public class InternalInputBuffer extends AbstractInputBuffer {
         //
 
         byte chr = 0;
+        byte prevChr = 0;
+        
         while (true) {
 
             // Read new bytes if needed
@@ -546,19 +549,24 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
 
+            prevChr = chr;
             chr = buf[pos];
 
-            if (chr == Constants.CR) {
-                // Skip
-            } else if (chr == Constants.LF) {
+            if (chr == Constants.CR && prevChr != Constants.CR) {
+                // Possible start of CRLF - process the next byte.
+            } else if (prevChr == Constants.CR && chr == Constants.LF) {
                 pos++;
                 return false;
             } else {
+                if (prevChr == Constants.CR) {
+                    // Must have read two bytes (first was CR, second was not LF)
+                    pos--;
+                }
+
                 break;
             }
 
             pos++;
-
         }
 
         // Mark the current buffer position
@@ -642,21 +650,34 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                         throw new EOFException(sm.getString("iib.eof.error"));
                 }
 
-                if (buf[pos] == Constants.CR) {
-                    // Skip
-                } else if (buf[pos] == Constants.LF) {
+                prevChr = chr;
+                chr = buf[pos];
+                if (chr == Constants.CR) {
+                    // Possible start of CRLF - process the next byte.
+                } else if (prevChr == Constants.CR && chr == Constants.LF) {
                     eol = true;
-                } else if (buf[pos] == Constants.SP) {
-                    buf[realPos] = buf[pos];
+                } else if (prevChr == Constants.CR) {
+                    // Invalid value
+                    // Delete the header (it will be the most recent one)
+                    headers.removeHeader(headers.size() - 1);
+                    skipLine(start);
+                    return true;
+                } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
+                    // Invalid value
+                    // Delete the header (it will be the most recent one)
+                    headers.removeHeader(headers.size() - 1);
+                    skipLine(start);
+                    return true;
+                } else if (chr == Constants.SP) {
+                    buf[realPos] = chr;
                     realPos++;
                 } else {
-                    buf[realPos] = buf[pos];
+                    buf[realPos] = chr;
                     realPos++;
                     lastSignificantChar = realPos;
                 }
 
                 pos++;
-
             }
 
             realPos = lastSignificantChar;
@@ -717,6 +738,9 @@ public class InternalInputBuffer extends AbstractInputBuffer {
             lastRealByte = pos - 1;
         }
 
+        byte chr = 0;
+        byte prevChr = 0;
+        
         while (!eol) {
 
             // Read new bytes if needed
@@ -725,9 +749,12 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
 
-            if (buf[pos] == Constants.CR) {
+            prevChr = chr;
+            chr = buf[pos];
+
+            if (chr == Constants.CR) {
                 // Skip
-            } else if (buf[pos] == Constants.LF) {
+            } else if (prevChr == Constants.CR && chr == Constants.LF) {
                 eol = true;
             } else {
                 lastRealByte = pos;
@@ -735,9 +762,15 @@ public class InternalInputBuffer extends AbstractInputBuffer {
             pos++;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("iib.invalidheader", new String(buf, start,
-                    lastRealByte - start + 1, "ISO-8859-1")));
+        if (rejectIllegalHeader || log.isDebugEnabled()) {
+            String message = sm.getString("iib.invalidheader", new String(buf, start,
+                    lastRealByte - start + 1, "ISO-8859-1"));
+            
+            if (rejectIllegalHeader) {
+            	throw new IllegalArgumentException(message);
+            }
+            
+			log.debug(message);
         }
     }
 

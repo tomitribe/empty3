@@ -94,12 +94,12 @@ public class Http11NioProcessor implements ActionHook {
     // ----------------------------------------------------------- Constructors
 
 
-    public Http11NioProcessor(int rxBufSize, int txBufSize, int maxHttpHeaderSize, NioEndpoint endpoint) {
+    public Http11NioProcessor(int rxBufSize, int txBufSize, int maxHttpHeaderSize, NioEndpoint endpoint, boolean rejectIllegalHeader) {
 
         this.endpoint = endpoint;
 
         request = new Request();
-        inputBuffer = new InternalNioInputBuffer(request, maxHttpHeaderSize);
+        inputBuffer = new InternalNioInputBuffer(request, maxHttpHeaderSize, rejectIllegalHeader);
         request.setInputBuffer(inputBuffer);
 
         response = new Response();

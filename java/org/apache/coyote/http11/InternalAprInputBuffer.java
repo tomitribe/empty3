@@ -48,7 +48,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
     /**
      * Alternate constructor.
      */
-    public InternalAprInputBuffer(Request request, int headerBufferSize) {
+    public InternalAprInputBuffer(Request request, int headerBufferSize, boolean rejectIllegalHeader) {
 
         this.request = request;
         headers = request.getMimeHeaders();
@@ -68,6 +68,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
 
         parsingHeader = true;
         swallowInput = true;
+        this.rejectIllegalHeader = rejectIllegalHeader;
 
     }
 
@@ -727,9 +728,15 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
             pos++;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("iib.invalidheader", new String(buf, start,
-                    lastRealByte - start + 1, "ISO-8859-1")));
+        if (rejectIllegalHeader || log.isDebugEnabled()) {
+            String message = sm.getString("iib.invalidheader", new String(buf, start,
+                    lastRealByte - start + 1, "ISO-8859-1"));
+            
+            if (rejectIllegalHeader) {
+            	throw new IllegalArgumentException(message);
+            }
+            
+			log.debug(message);
         }
     }
 

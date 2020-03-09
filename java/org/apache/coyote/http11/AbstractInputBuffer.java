@@ -22,4 +22,11 @@ import org.apache.tomcat.util.res.StringManager;
 public abstract class AbstractInputBuffer implements InputBuffer {
 
     protected static final StringManager sm = StringManager.getManager(AbstractInputBuffer.class);
+    
+    /**
+     * Do HTTP headers with illegal names and/or values cause the request to be
+     * rejected? Note that the field name is not quite right but cannot be
+     * easily changed without breaking binary compatibility.
+     */
+    protected boolean rejectIllegalHeader;
 }

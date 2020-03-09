@@ -63,6 +63,61 @@ public class Http11AprProtocol extends AbstractProtocol
      */
     protected static StringManager sm =
         StringManager.getManager(Constants.Package);
+    
+    private boolean rejectIllegalHeader = false;
+
+    /**
+     * If an HTTP request is received that contains an illegal header name or
+     * value (e.g. the header name is not a token) will the request be rejected
+     * (with a 400 response) or will the illegal header be ignored?
+     * @return {@code true} if the request will be rejected or {@code false} if
+     *         the header will be ignored
+     */
+    public boolean getRejectIllegalHeader() { return rejectIllegalHeader; }
+    
+    /**
+     * If an HTTP request is received that contains an illegal header name or
+     * value (e.g. the header name is not a token) should the request be
+     * rejected (with a 400 response) or should the illegal header be ignored?
+     *
+     * @param rejectIllegalHeader   {@code true} to reject requests with illegal
+     *                              header names or values, {@code false} to
+     *                              ignore the header
+     */
+    public void setRejectIllegalHeader(boolean rejectIllegalHeader) {
+        this.rejectIllegalHeader = rejectIllegalHeader;
+    }
+    
+    /**
+     * If an HTTP request is received that contains an illegal header name or
+     * value (e.g. the header name is not a token) will the request be rejected
+     * (with a 400 response) or will the illegal header be ignored?
+     *
+     * @return {@code true} if the request will be rejected or {@code false} if
+     *         the header will be ignored
+     *
+     * @deprecated Now an alias for {@link #getRejectIllegalHeader()}. Will be
+     *             removed in Tomcat 10 onwards.
+     */
+    @Deprecated
+    public boolean getRejectIllegalHeaderName() { return rejectIllegalHeader; }
+    
+    /**
+     * If an HTTP request is received that contains an illegal header name or
+     * value (e.g. the header name is not a token) should the request be
+     * rejected (with a 400 response) or should the illegal header be ignored?
+     *
+     * @param rejectIllegalHeaderName   {@code true} to reject requests with
+     *                                  illegal header names or values,
+     *                                  {@code false} to ignore the header
+     *
+     * @deprecated Now an alias for {@link #setRejectIllegalHeader(boolean)}.
+     *             Will be removed in Tomcat 10 onwards.
+     */
+    @Deprecated
+    public void setRejectIllegalHeaderName(boolean rejectIllegalHeaderName) {
+        this.rejectIllegalHeader = rejectIllegalHeaderName;
+    }
 
     public Http11AprProtocol() {
         setSoLinger(Constants.DEFAULT_CONNECTION_LINGER);
@@ -665,7 +720,7 @@ public class Http11AprProtocol extends AbstractProtocol
 
         protected Http11AprProcessor createProcessor() {
             Http11AprProcessor processor =
-                new Http11AprProcessor(proto.maxHttpHeaderSize, proto.endpoint);
+                new Http11AprProcessor(proto.maxHttpHeaderSize, proto.endpoint, proto.getRejectIllegalHeader());
             processor.setAdapter(proto.adapter);
             processor.setMaxKeepAliveRequests(proto.maxKeepAliveRequests);
             processor.setTimeout(proto.timeout);

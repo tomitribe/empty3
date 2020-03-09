@@ -89,12 +89,12 @@ public class Http11AprProcessor implements ActionHook {
     // ----------------------------------------------------------- Constructors
 
 
-    public Http11AprProcessor(int headerBufferSize, AprEndpoint endpoint) {
+    public Http11AprProcessor(int headerBufferSize, AprEndpoint endpoint, boolean rejectIllegalHeader) {
 
         this.endpoint = endpoint;
 
         request = new Request();
-        inputBuffer = new InternalAprInputBuffer(request, headerBufferSize);
+        inputBuffer = new InternalAprInputBuffer(request, headerBufferSize, rejectIllegalHeader);
         request.setInputBuffer(inputBuffer);
 
         response = new Response();
