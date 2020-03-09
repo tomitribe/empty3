@@ -84,12 +84,12 @@ public class Http11Processor implements ActionHook {
     // ------------------------------------------------------------ Constructor
 
 
-    public Http11Processor(int headerBufferSize, JIoEndpoint endpoint) {
+    public Http11Processor(int headerBufferSize, JIoEndpoint endpoint, boolean rejectIllegalHeader) {
 
         this.endpoint = endpoint;
         
         request = new Request();
-        inputBuffer = new InternalInputBuffer(request, headerBufferSize);
+        inputBuffer = new InternalInputBuffer(request, headerBufferSize, rejectIllegalHeader);
         request.setInputBuffer(inputBuffer);
 
         response = new Response();
