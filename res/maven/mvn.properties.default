@@ -41,6 +41,7 @@ maven.asf.release.deploy.version=6.0.44
 tomcat.lib.path=../../output/build/lib
 tomcat.bin.path=../../output/build/bin
 tomcat.extras.path=../../output/extras
+tomcat.release.path=../../output/release
 
 #Where do we find the POM files
 tomcat.pom.path=../../res/maven
