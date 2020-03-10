@@ -31,6 +31,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.catalina.Context;
+import org.apache.catalina.connector.Connector;
 import org.apache.catalina.startup.SimpleHttpClient;
 import org.apache.catalina.startup.TesterServlet;
 import org.apache.catalina.startup.Tomcat;
@@ -71,7 +72,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getLocalPort());
+                setPort(tomcat.getConnector().getLocalPort());
 
                 // Open connection
                 connect();
@@ -354,7 +355,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
                 Assert.assertTrue(connector.setProperty(
                         "rejectIllegalHeader", Boolean.toString(rejectIllegalHeader)));
                 tomcat.start();
-                setPort(tomcat.getLocalPort());
+                setPort(connector.getLocalPort());
 
                 // Open connection
                 connect();
@@ -487,7 +488,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getLocalPort());
+                setPort(tomcat.getConnector().getLocalPort());
 
                 // Open connection
                 connect();
@@ -556,7 +557,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getLocalPort());
+                setPort(tomcat.getConnector().getLocalPort());
 
                 // Open connection
                 connect();
@@ -627,7 +628,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
                 Connector connector = tomcat.getConnector();
                 Assert.assertTrue(connector.setProperty("rejectIllegalHeader", "false"));
                 tomcat.start();
-                setPort(tomcat.getLocalPort());
+                setPort(connector.getLocalPort());
 
                 // Open connection
                 connect();
@@ -769,10 +770,18 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getLocalPort());
+                setPort(tomcat.getConnector().getLocalPort());
 
                 // Open connection
                 connect();
+
+                String[] request = new String[1];
+                request[0] =
+                    "GET" + (char) 0 + " /test HTTP/1.1" + CRLF +
+                    "Host: localhost:8080" + CRLF +
+                    "Connection: close" + CRLF +
+                    CRLF;
+
                 setRequest(request);
                 processRequest(); // blocks until response has been read
 

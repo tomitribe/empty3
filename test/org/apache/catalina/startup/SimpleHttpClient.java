@@ -258,6 +258,7 @@ public abstract class SimpleHttpClient {
                     throw new IOException("No 100 Continue response");
                 }
             }
+
             // Put the headers into a map, and process interesting ones
             processHeaders();
         }
