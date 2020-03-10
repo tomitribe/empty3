@@ -956,11 +956,17 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
 
             pos++;
         }
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("iib.invalidheader", new String(buf,
+        if (rejectIllegalHeader || log.isDebugEnabled()) {
+            String message = sm.getString("iib.invalidheader", new String(buf,
                     headerData.start,
                     headerData.lastSignificantChar - headerData.start + 1,
-                    "ISO-8859-1")));
+                    "ISO-8859-1"));
+            
+            if (rejectIllegalHeader) {
+            	throw new IllegalArgumentException(message);
+            }
+            
+			log.debug(message);
         }
 
         headerParsePos = HeaderParsePosition.HEADER_START;
