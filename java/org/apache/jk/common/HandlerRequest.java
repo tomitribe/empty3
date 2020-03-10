@@ -22,7 +22,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.CharConversionException;
 import java.net.InetAddress;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.coyote.Request;
 import org.apache.coyote.RequestInfo;
@@ -63,7 +68,11 @@ import org.apache.tomcat.util.threads.ThreadWithAttributes;
  */
 public class HandlerRequest extends JkHandler
 {
-    private static org.apache.juli.logging.Log log=
+    private class ForbiddenAttributeException extends Exception {
+
+	}
+
+	private static org.apache.juli.logging.Log log=
         org.apache.juli.logging.LogFactory.getLog( HandlerRequest.class );
 
     /*
@@ -75,11 +84,23 @@ public class HandlerRequest extends JkHandler
      * Thread lock.
      */
     private static Object lock = new Object();
+    
+    private static final Set<String> javaxAttributes;
 
     private HandlerDispatch dispatch;
     private String ajpidDir="conf";
     
 
+    static {
+        // Build the Set of javax attributes
+        Set<String> s = new HashSet<String>();
+        s.add("javax.servlet.request.cipher_suite");
+        s.add("javax.servlet.request.key_size");
+        s.add("javax.servlet.request.ssl_session");
+        s.add("javax.servlet.request.X509Certificate");
+        javaxAttributes= Collections.unmodifiableSet(s);
+    }
+    
     public HandlerRequest() {
     }
 
@@ -254,6 +275,17 @@ public class HandlerRequest extends JkHandler
     private boolean registerRequests=true;
     private boolean shutdownEnabled=false;
     private boolean delayInitialRead = true;
+    
+    private Pattern allowedRequestAttributesPatternPattern;
+    public void setAllowedRequestAttributesPattern(String allowedRequestAttributesPattern) {
+        this.allowedRequestAttributesPatternPattern = Pattern.compile(allowedRequestAttributesPattern);
+    }
+    public String getAllowedRequestAttributesPattern() {
+        return allowedRequestAttributesPatternPattern.pattern();
+    }
+    protected Pattern getAllowedRequestAttributesPatternPattern() {
+        return allowedRequestAttributesPatternPattern;
+    }
 
     public int invoke(Msg msg, MsgContext ep ) 
         throws IOException    {
@@ -284,6 +316,18 @@ public class HandlerRequest extends JkHandler
                     twa.setParam(control,
                                  ((Request)ep.getRequest()).unparsedURI());
                 }
+            } catch (ForbiddenAttributeException ex) {
+            	/* If we are here it is because we have received a forbidden attribute on the request */
+                log.error( "Forbidden attribute on request ", ex );
+                msg.dump( "Incomming message");
+                Response res=ep.getRequest().getResponse();
+                if ( res==null ) {
+                    res=new Response();
+                    ep.getRequest().setResponse(res);
+                }
+                res.setMessage("403");
+                res.setStatus(403);
+                return ERROR;
             } catch( Exception ex ) {
                 /* If we are here it is because we have a bad header or something like that */
                 log.error( "Error decoding request ", ex );
@@ -390,7 +434,7 @@ public class HandlerRequest extends JkHandler
     }
 
     private int decodeRequest( Msg msg, MsgContext ep, MessageBytes tmpMB )
-        throws IOException    {
+        throws IOException, ForbiddenAttributeException    {
         // FORWARD_REQUEST handler
         Request req = checkRequest(ep);
 
@@ -452,7 +496,7 @@ public class HandlerRequest extends JkHandler
     }
         
     private int decodeAttributes( MsgContext ep, Msg msg, Request req,
-                                  MessageBytes tmpMB) {
+                                  MessageBytes tmpMB) throws ForbiddenAttributeException {
         boolean moreAttr=true;
 
         while( moreAttr ) {
@@ -489,10 +533,27 @@ public class HandlerRequest extends JkHandler
                         req.setRemotePort(Integer.parseInt(v));
                     } catch (NumberFormatException nfe) {
                     }
-                } else {
-                    req.setAttribute(n, v );
-                    if(log.isTraceEnabled())
+                } else if (javaxAttributes.contains(n)) {
+                    req.setAttribute(n, v);
+                    if (log.isTraceEnabled()) {
                         log.trace("jk Attribute set " + n + "=" + v);
+                    }
+                } else {
+                	// All 'known' attributes will be processed by the previous
+                    // blocks. Any remaining attribute is an 'arbitrary' one.
+                    if (allowedRequestAttributesPatternPattern == null) {
+                    	throw new ForbiddenAttributeException();
+                    } else {
+                        Matcher m = allowedRequestAttributesPatternPattern.matcher(n);
+                        if (m.matches()) {
+                            req.setAttribute(n, v);
+                            if (log.isTraceEnabled()) {
+                                log.trace("jk Attribute set " + n + "=" + v);
+                            }
+                        } else {
+                            throw new ForbiddenAttributeException();
+                        }
+                    }
                 }
             }
 
@@ -576,6 +637,7 @@ public class HandlerRequest extends JkHandler
                 
             default:
                 break; // ignore, we don't know about it - backward compat
+                
             }
         }
         return 200;
