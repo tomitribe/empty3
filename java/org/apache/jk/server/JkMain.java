@@ -546,6 +546,7 @@ public class JkMain implements MBeanRegistration
         replacements.put("tomcatAuthentication", "request.tomcatAuthentication");
         replacements.put("packetSize", "channelSocket.packetSize");
         replacements.put("maxHeaderCount", "request.maxHeaderCount");
+        replacements.put("allowedRequestAttributesPattern", "request.allowedRequestAttributesPattern");
     }
 
     private void preProcessProperties() {
