@@ -833,10 +833,18 @@ public class Http11AprProcessor implements ActionHook {
                 if (!disableUploadTimeout) {
                     Socket.timeoutSet(socket, timeout * 1000);
                 }
+                // Process the Protocol component of the request line
+                // Need to know if this is an HTTP 0.9 request before trying to
+                // parse headers.
+                prepareRequestProtocol();
+                
                 // Set this every time in case limit has been changed via JMX
                 request.getMimeHeaders().setLimit(endpoint.getMaxHeaderCount());
                 request.getCookies().setLimit(getMaxCookieCount());
-                inputBuffer.parseHeaders();
+                
+                if (!http09) {
+                    inputBuffer.parseHeaders();
+                }
             } catch (IOException e) {
                 error = true;
                 break;
@@ -1303,24 +1311,14 @@ public class Http11AprProcessor implements ActionHook {
     // ------------------------------------------------------ Protected Methods
 
 
-    /**
-     * After reading the request headers, we have to setup the request filters.
-     */
-    protected void prepareRequest() {
-
-        http11 = true;
-        http09 = false;
-        contentDelimitation = false;
-        expectation = false;
-        sendfileData = null;
-        if (ssl) {
-            request.scheme().setString("https");
-        }
+    private void prepareRequestProtocol() {
         MessageBytes protocolMB = request.protocol();
         if (protocolMB.equals(Constants.HTTP_11)) {
+        	http09 = false;
             http11 = true;
             protocolMB.setString(Constants.HTTP_11);
         } else if (protocolMB.equals(Constants.HTTP_10)) {
+        	http09 = false;
             http11 = false;
             keepAlive = false;
             protocolMB.setString(Constants.HTTP_10);
@@ -1331,11 +1329,27 @@ public class Http11AprProcessor implements ActionHook {
             keepAlive = false;
         } else {
             // Unsupported protocol
+        	http09 = false;
             http11 = false;
             error = true;
             // Send 505; Unsupported HTTP version
             response.setStatus(505);
         }
+    }
+
+
+    /**
+     * After reading the request headers, we have to setup the request filters.
+     */
+    protected void prepareRequest() throws IOException {
+
+        contentDelimitation = false;
+        expectation = false;
+
+        if (endpoint.isSSLEnabled()) {
+            request.scheme().setString("https");
+        }
+
 
         MessageBytes methodMB = request.method();
         if (methodMB.equals(Constants.GET)) {
