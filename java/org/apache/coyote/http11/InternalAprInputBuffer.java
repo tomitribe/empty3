@@ -273,6 +273,8 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
         lastActiveFilter = -1;
         parsingHeader = true;
         swallowInput = true;
+        prevChr = 0;
+        chr = 0;
 
     }
 
@@ -344,7 +346,6 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
         // Skipping blank lines
         //
 
-        byte chr = 0;
         do {
 
             // Read new bytes if needed
@@ -358,7 +359,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
 
             chr = buf[pos++];
 
-        } while ((chr == Constants.CR) || (chr == Constants.LF));
+        } while (chr == Constants.CR || chr == Constants.LF);
 
         pos--;
 
@@ -433,17 +434,30 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
                 if (!fill())
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
+            
+            if (buf[pos -1] == Constants.CR && buf[pos] != Constants.LF) {
+                // CR not followed by LF so not an HTTP/0.9 request and
+                // therefore invalid. Trigger error handling.
+                // Avoid unknown protocol triggering an additional error
+                request.protocol().setString(Constants.HTTP_11);
+                throw new IllegalArgumentException(sm.getString("iib.invalidRequestTarget"));
+            }
 
             // Spec says single SP but it also says be tolerant of HT
             if (buf[pos] == Constants.SP || buf[pos] == Constants.HT) {
                 space = true;
                 end = pos;
-            } else if ((buf[pos] == Constants.CR)
-                       || (buf[pos] == Constants.LF)) {
+            } else if (buf[pos] == Constants.CR) {
+                // HTTP/0.9 style request. CR is optional. LF is not.
+            } else if (buf[pos] == Constants.LF) {
                 // HTTP/0.9 style request
                 eol = true;
                 space = true;
-                end = pos;
+                if (buf[pos - 1] == Constants.CR) {
+                    end = pos - 1;
+                } else {
+                    end = pos;
+                }
             } else if ((buf[pos] == Constants.QUESTION)
                        && (questionPos == -1)) {
                 questionPos = pos;
@@ -465,7 +479,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
         }
 
         // Spec says single SP but also says be tolerant of multiple and/or HT
-        while (space) {
+        while (space && !eol) {
             // Read new bytes if needed
             if (pos >= lastValid) {
                 if (!fill())
@@ -497,10 +511,9 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
             }
 
             if (buf[pos] == Constants.CR) {
-                end = pos;
-            } else if (buf[pos] == Constants.LF) {
-                if (end == 0)
-                    end = pos;
+                // Possible end of request line. Need LF next.
+            } else if (buf[pos - 1] == Constants.CR && buf[pos] == Constants.LF) {
+                end = pos - 1;
                 eol = true;
             } else if (!HttpParser.isHttpProtocol(buf[pos])) {
                 throw new IllegalArgumentException(sm.getString("iib.invalidHttpProtocol"));
@@ -543,14 +556,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
      * HTTP header parsing is done
      */
     @SuppressWarnings("null") // headerValue cannot be null
-    public boolean parseHeader()
-        throws IOException {
-
-        //
-        // Check for blank line
-        //
-
-        byte chr = 0;
+    private boolean parseHeader() throws IOException {
         while (true) {
 
             // Read new bytes if needed
@@ -559,14 +565,19 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
 
+            prevChr = chr;
             chr = buf[pos];
-
-            if (chr == Constants.CR) {
-                // Skip
-            } else if (chr == Constants.LF) {
+            if (chr == Constants.CR && prevChr != Constants.CR) {
+                // Possible start of CRLF - process the next byte.
+            } else if (prevChr == Constants.CR && chr == Constants.LF) {
                 pos++;
                 return false;
             } else {
+                if (prevChr == Constants.CR) {
+                    // Must have read two bytes (first was CR, second was not LF)
+                    pos--;
+                }
+
                 break;
             }
 
@@ -602,6 +613,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
                 skipLine(start);
                 return true;
             }
+
             chr = buf[pos];
             if ((chr >= Constants.A) && (chr <= Constants.Z)) {
                 buf[pos] = (byte) (chr - Constants.LC_OFFSET);
@@ -654,21 +666,34 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
                         throw new EOFException(sm.getString("iib.eof.error"));
                 }
 
-                if (buf[pos] == Constants.CR) {
-                    // Skip
-                } else if (buf[pos] == Constants.LF) {
+                prevChr = chr;
+                chr = buf[pos];
+                if (chr == Constants.CR) {
+                    // Possible start of CRLF - process the next byte.
+                } else if (prevChr == Constants.CR && chr == Constants.LF) {
                     eol = true;
-                } else if (buf[pos] == Constants.SP) {
-                    buf[realPos] = buf[pos];
+                } else if (prevChr == Constants.CR) {
+                    // Invalid value
+                    // Delete the header (it will be the most recent one)
+                    headers.removeHeader(headers.size() - 1);
+                    skipLine(start);
+                    return true;
+                } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
+                    // Invalid value
+                    // Delete the header (it will be the most recent one)
+                    headers.removeHeader(headers.size() - 1);
+                    skipLine(start);
+                    return true;
+                } else if (chr == Constants.SP) {
+                    buf[realPos] = chr;
                     realPos++;
                 } else {
-                    buf[realPos] = buf[pos];
+                    buf[realPos] = chr;
                     realPos++;
                     lastSignificantChar = realPos;
                 }
 
                 pos++;
-
             }
 
             realPos = lastSignificantChar;
@@ -682,14 +707,14 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
 
-            chr = buf[pos];
-            if ((chr != Constants.SP) && (chr != Constants.HT)) {
+            byte peek = buf[pos];
+            if (peek != Constants.SP && peek != Constants.HT) {
                 validLine = false;
             } else {
                 eol = false;
                 // Copying one extra space in the buffer (since there must
                 // be at least one space inserted between the lines)
-                buf[realPos] = chr;
+                buf[realPos] = peek;
                 realPos++;
             }
 
@@ -709,7 +734,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
         if (pos - 1 > start) {
             lastRealByte = pos - 1;
         }
-
+        
         while (!eol) {
 
             // Read new bytes if needed
@@ -718,9 +743,12 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
 
-            if (buf[pos] == Constants.CR) {
+            prevChr = chr;
+            chr = buf[pos];
+
+            if (chr == Constants.CR) {
                 // Skip
-            } else if (buf[pos] == Constants.LF) {
+            } else if (prevChr == Constants.CR && chr == Constants.LF) {
                 eol = true;
             } else {
                 lastRealByte = pos;

@@ -277,7 +277,9 @@ public class InternalInputBuffer extends AbstractInputBuffer {
         lastActiveFilter = -1;
         parsingHeader = true;
         swallowInput = true;
-
+        
+        prevChr = 0;
+        chr = 0;
     }
 
 
@@ -346,7 +348,6 @@ public class InternalInputBuffer extends AbstractInputBuffer {
         // Skipping blank lines
         //
 
-        byte chr = 0;
         do {
 
             // Read new bytes if needed
@@ -357,7 +358,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
 
             chr = buf[pos++];
 
-        } while ((chr == Constants.CR) || (chr == Constants.LF));
+        } while (chr == Constants.CR || chr == Constants.LF);
 
         pos--;
 
@@ -424,17 +425,30 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                 if (!fill())
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
+            
+            if (buf[pos -1] == Constants.CR && buf[pos] != Constants.LF) {
+                // CR not followed by LF so not an HTTP/0.9 request and
+                // therefore invalid. Trigger error handling.
+                // Avoid unknown protocol triggering an additional error
+                request.protocol().setString(Constants.HTTP_11);
+                throw new IllegalArgumentException(sm.getString("iib.invalidRequestTarget"));
+            }
 
             // Spec says single SP but it also says be tolerant of HT
             if (buf[pos] == Constants.SP || buf[pos] == Constants.HT) {
                 space = true;
                 end = pos;
-            } else if ((buf[pos] == Constants.CR)
-                       || (buf[pos] == Constants.LF)) {
+            } else if (buf[pos] == Constants.CR) {
+                // HTTP/0.9 style request. CR is optional. LF is not.
+            } else if (buf[pos] == Constants.LF) {
                 // HTTP/0.9 style request
                 eol = true;
                 space = true;
-                end = pos;
+                if (buf[pos - 1] == Constants.CR) {
+                    end = pos - 1;
+                } else {
+                    end = pos;
+                }
             } else if ((buf[pos] == Constants.QUESTION)
                        && (questionPos == -1)) {
                 questionPos = pos;
@@ -456,7 +470,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
         }
 
         // Spec says single SP but also says be tolerant of multiple SP and/or HT
-        while (space) {
+        while (space && !eol) {
             // Read new bytes if needed
             if (pos >= lastValid) {
                 if (!fill())
@@ -487,10 +501,9 @@ public class InternalInputBuffer extends AbstractInputBuffer {
             }
 
             if (buf[pos] == Constants.CR) {
-                end = pos;
-            } else if (buf[pos] == Constants.LF) {
-                if (end == 0)
-                    end = pos;
+                // Possible end of request line. Need LF next.
+            } else if (buf[pos - 1] == Constants.CR && buf[pos] == Constants.LF) {
+                end = pos - 1;
                 eol = true;
             } else if (!HttpParser.isHttpProtocol(buf[pos])) {
                 throw new IllegalArgumentException(sm.getString("iib.invalidHttpProtocol"));
@@ -531,16 +544,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
      * HTTP header parsing is done
      */
     @SuppressWarnings("null") // headerValue cannot be null
-    public boolean parseHeader()
-        throws IOException {
-
-        //
-        // Check for blank line
-        //
-
-        byte chr = 0;
-        byte prevChr = 0;
-        
+    private boolean parseHeader() throws IOException {
         while (true) {
 
             // Read new bytes if needed
@@ -691,14 +695,14 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
 
-            chr = buf[pos];
-            if ((chr != Constants.SP) && (chr != Constants.HT)) {
+            byte peek = buf[pos];
+            if (peek != Constants.SP && peek != Constants.HT) {
                 validLine = false;
             } else {
                 eol = false;
                 // Copying one extra space in the buffer (since there must
                 // be at least one space inserted between the lines)
-                buf[realPos] = chr;
+                buf[realPos] = peek;
                 realPos++;
             }
 
@@ -737,9 +741,6 @@ public class InternalInputBuffer extends AbstractInputBuffer {
         if (pos - 1 > start) {
             lastRealByte = pos - 1;
         }
-
-        byte chr = 0;
-        byte prevChr = 0;
         
         while (!eol) {
 
