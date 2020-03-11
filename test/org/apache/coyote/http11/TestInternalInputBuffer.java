@@ -38,6 +38,7 @@ import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
 
 public class TestInternalInputBuffer extends TomcatBaseTest {
+	
     private static final String CR = "\r";
     private static final String LF = "\n";
     private  static final String CRLF = CR + LF;
@@ -432,6 +433,102 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
 
     /**
+     * Test case for new lines at the start of a request. RFC2616
+     * does not permit any, but Tomcat is tolerant of them if they are present.
+     */
+    @Test
+    public void testNewLines() {
+
+        NewLinesClient client = new NewLinesClient(10);
+
+        client.doRequest();
+        Assert.assertTrue(client.isResponse200());
+        Assert.assertTrue(client.isResponseBodyOK());
+    }
+
+
+    /**
+     * Test case for new lines at the start of a request. RFC2616
+     * does not permit any, but Tomcat is tolerant of them if they are present.
+     */
+    @Test
+    public void testNewLinesExcessive() {
+
+        NewLinesClient client = new NewLinesClient(10000);
+
+        // If the connection is closed fast enough, writing the request will
+        // fail and the response won't be read.
+        Exception e = client.doRequest();
+        if (e == null) {
+            Assert.assertTrue(client.isResponse400());
+        }
+        Assert.assertFalse(client.isResponseBodyOK());
+    }
+
+
+    private class NewLinesClient extends SimpleHttpClient {
+
+        private final String newLines;
+
+        private NewLinesClient(int count) {
+            StringBuilder sb = new StringBuilder(count * 2);
+            for (int i = 0; i < count; i++) {
+                sb.append(CRLF);
+            }
+            newLines = sb.toString();
+        }
+
+        private Exception doRequest() {
+
+            Tomcat tomcat = getTomcatInstance();
+
+            Context root = tomcat.addContext("", TEMP_DIR);
+            Tomcat.addServlet(root, "test", new TesterServlet());
+            root.addServletMapping("/test", "test");
+
+            try {
+                tomcat.start();
+                setPort(tomcat.getConnector().getPort());
+
+                // Open connection
+                connect();
+
+                String[] request = new String[1];
+                request[0] =
+                    newLines +
+                    "GET /test HTTP/1.1" + CRLF +
+                    "host: localhost:8080" + CRLF +
+                    "X-Bug48839: abcd" + CRLF +
+                    "\tefgh" + CRLF +
+                    "Connection: close" + CRLF +
+                    CRLF;
+
+                setRequest(request);
+                processRequest(); // blocks until response has been read
+
+                // Close the connection
+                disconnect();
+            } catch (Exception e) {
+                return e;
+            }
+            return null;
+        }
+
+        @Override
+        public boolean isResponseBodyOK() {
+            if (getResponseBody() == null) {
+                return false;
+            }
+            if (!getResponseBody().contains("OK")) {
+                return false;
+            }
+            return true;
+        }
+
+    }
+
+
+    /**
      * Test case for https://bz.apache.org/bugzilla/show_bug.cgi?id=54947
      */
     @Test
@@ -677,7 +774,6 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
                 // Open connection
                 connect();
-
                 setRequest(request);
                 processRequest(); // blocks until response has been read
 

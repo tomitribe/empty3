@@ -125,7 +125,7 @@ public class TestHttp11InputBufferCRLF extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getLocalPort());
+                setPort(tomcat.getConnector().getPort());
                 setRequestPause(20);
 
                 // Open connection
