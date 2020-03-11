@@ -38,7 +38,6 @@ import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
 
 public class TestInternalInputBuffer extends TomcatBaseTest {
-
     private static final String CR = "\r";
     private static final String LF = "\n";
     private  static final String CRLF = CR + LF;
@@ -678,13 +677,6 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
                 // Open connection
                 connect();
-
-                String[] request = new String[1];
-                request[0] =
-                    "GET" + (char) 0 + " /test HTTP/1.1" + CRLF +
-                    "Host: localhost:8080" + CRLF +
-                    "Connection: close" + CRLF +
-                    CRLF;
 
                 setRequest(request);
                 processRequest(); // blocks until response has been read

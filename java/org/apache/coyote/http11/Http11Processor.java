@@ -819,9 +819,18 @@ public class Http11Processor implements ActionHook {
                 } else {
                     socket.setSoTimeout(timeout);
                 }
+                
+                // Process the Protocol component of the request line
+                // Need to know if this is an HTTP 0.9 request before trying to
+                // parse headers.
+                prepareRequestProtocol();
+                
                 // Set this every time in case limit has been changed via JMX
                 request.getMimeHeaders().setLimit(endpoint.getMaxHeaderCount());
-                inputBuffer.parseHeaders();
+                
+                if (!http09) {
+                    inputBuffer.parseHeaders();
+                }
             } catch (IOException e) {
                 error = true;
                 break;
@@ -1168,23 +1177,14 @@ public class Http11Processor implements ActionHook {
     // ------------------------------------------------------ Protected Methods
 
 
-    /**
-     * After reading the request headers, we have to setup the request filters.
-     */
-    protected void prepareRequest() {
-
-        http11 = true;
-        http09 = false;
-        contentDelimitation = false;
-        expectation = false;
-        if (sslSupport != null) {
-            request.scheme().setString("https");
-        }
+    private void prepareRequestProtocol() {
         MessageBytes protocolMB = request.protocol();
         if (protocolMB.equals(Constants.HTTP_11)) {
+        	http09 = false;
             http11 = true;
             protocolMB.setString(Constants.HTTP_11);
         } else if (protocolMB.equals(Constants.HTTP_10)) {
+        	http09 = false;
             http11 = false;
             keepAlive = false;
             protocolMB.setString(Constants.HTTP_10);
@@ -1195,6 +1195,7 @@ public class Http11Processor implements ActionHook {
             keepAlive = false;
         } else {
             // Unsupported protocol
+        	http09 = false;
             http11 = false;
             error = true;
             // Send 505; Unsupported HTTP version
@@ -1203,6 +1204,21 @@ public class Http11Processor implements ActionHook {
                           " Unsupported HTTP version \""+protocolMB+"\"");
             }
             response.setStatus(505);
+        }
+        
+    }
+
+
+    /**
+     * After reading the request headers, we have to setup the request filters.
+     */
+    protected void prepareRequest() throws IOException {
+
+        contentDelimitation = false;
+        expectation = false;
+
+        if (sslSupport != null) {
+            request.scheme().setString("https");
         }
 
         MessageBytes methodMB = request.method();

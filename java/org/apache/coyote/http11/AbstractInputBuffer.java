@@ -28,4 +28,7 @@ public abstract class AbstractInputBuffer implements InputBuffer {
      * easily changed without breaking binary compatibility.
      */
     protected boolean rejectIllegalHeader;
+    
+    protected byte prevChr = 0;
+    protected byte chr = 0;
 }
