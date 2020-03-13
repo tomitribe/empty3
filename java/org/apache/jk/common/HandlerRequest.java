@@ -533,6 +533,8 @@ public class HandlerRequest extends JkHandler
                         req.setRemotePort(Integer.parseInt(v));
                     } catch (NumberFormatException nfe) {
                     }
+                } else if (n.equals("JK_LB_ACTIVATION")) {
+                    req.setAttribute(n, v);
                 } else if (javaxAttributes.contains(n)) {
                     req.setAttribute(n, v);
                     if (log.isTraceEnabled()) {
