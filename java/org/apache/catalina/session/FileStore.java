@@ -35,6 +35,9 @@ import org.apache.catalina.Globals;
 import org.apache.catalina.Loader;
 import org.apache.catalina.Session;
 import org.apache.catalina.util.CustomObjectInputStream;
+import org.apache.juli.logging.Log;
+import org.apache.juli.logging.LogFactory;
+import org.apache.tomcat.util.res.StringManager;
 
 /**
  * Concrete implementation of the <b>Store</b> interface that utilizes
@@ -44,6 +47,10 @@ import org.apache.catalina.util.CustomObjectInputStream;
  * @author Craig R. McClanahan
  */
 public final class FileStore extends StoreBase {
+
+    private static final Log log = LogFactory.getLog(FileStore.class);
+    private static final StringManager sm = StringManager.getManager(Constants.Package);
+
 
     // ----------------------------------------------------- Constants
 
@@ -387,13 +394,21 @@ public final class FileStore extends StoreBase {
      *
      * @param id The ID of the Session to be retrieved. This is
      *    used in the file naming.
+     * @throws IOException 
      */
-    private File file(String id) {
-        if (this.directory == null) {
+    private File file(String id) throws IOException {
+        File storageDir = directory();
+        if (storageDir == null) {
             return null;
         }
         String filename = id + FILE_EXT;
-        File file = new File(directory(), filename);
+        File file = new File(storageDir, filename);
+
+        // Check the file is within the storage directory
+        if (!file.getCanonicalPath().startsWith(storageDir.getCanonicalPath())) {
+            log.warn(sm.getString("fileStore.invalid", file.getPath(), id));
+            return null;
+        }
         return file;
     }
 }

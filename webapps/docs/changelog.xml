@@ -53,6 +53,7 @@
   </subsection>
   <subsection name="Coyote">
     <changelog>
+
       <update>
         Disable (comment out in server.xml) the AJP/1.3 connector by default.
         (markt)
@@ -68,6 +69,13 @@
         <code>secretRequired</code> is <code>true</code> the AJP/1.3 Connector
         will not start unless the <code>secret</code> attribute is configured to
         a non-null, non-zero length String. (markt)
+      </add>
+    </changelog>
+  </subsection>
+  <subsection name="Other">
+    <changelog>
+      <add>
+        Improve validation of storage location when using FileStore. (markt)
       </add>
     </changelog>
   </subsection>
