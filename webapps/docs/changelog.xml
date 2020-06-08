@@ -103,6 +103,9 @@
         system where the combination of NSIS 3.x and wine leads to failed
         installer builds. (markt)
       </fix>
+      <add>
+        Improve validation of storage location when using FileStore. (markt)
+      </add>
     </changelog>
   </subsection>
 </section>
