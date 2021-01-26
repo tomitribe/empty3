@@ -41,6 +41,7 @@ import org.apache.catalina.util.RequestUtil;
 import org.apache.naming.NamingContextBindingsEnumeration;
 import org.apache.naming.NamingContextEnumeration;
 import org.apache.naming.NamingEntry;
+import org.apache.tomcat.util.compat.JrePlatform;
 
 /**
  * Filesystem Directory Context implementation helper class.
@@ -787,6 +788,12 @@ public class FileDirContext extends BaseDirContext {
         	if (allowLinking)
         		return file;
         	
+            // Additional Windows specific checks to handle known problems with
+            // File.getCanonicalPath()
+            if (JrePlatform.IS_WINDOWS && isInvalidWindowsFilename(name)) {
+                return null;
+            }
+        	
             // Check that this file belongs to our root path
             String canPath = null;
             try {
@@ -801,6 +808,10 @@ public class FileDirContext extends BaseDirContext {
                 return null;
             }
 
+            if (canPath.length() > 0) {
+                canPath = normalize(canPath);
+            }
+            
             // Case sensitivity check
             if (caseSensitive) {
                 String fileAbsPath = file.getAbsolutePath();
@@ -809,6 +820,7 @@ public class FileDirContext extends BaseDirContext {
                 String absPath = normalize(fileAbsPath);
                 if (canPath != null)
                     canPath = normalize(canPath);
+                
                 if ((absoluteBase.length() < absPath.length())
                     && (absoluteBase.length() < canPath.length())) {
                     absPath = absPath.substring(absoluteBase.length() + 1);
@@ -819,8 +831,22 @@ public class FileDirContext extends BaseDirContext {
                     canPath = canPath.substring(absoluteBase.length() + 1);
                     if (canPath.equals(""))
                         canPath = "/";
-                    if (!canPath.equals(absPath))
-                        return null;
+                    if (!canPath.equals(absPath)) {
+                    	if (!canPath.equalsIgnoreCase(absPath)) {
+                            // Typically means symlinks are in use but being ignored. Given
+                            // the symlink was likely created for a reason, log a warning
+                            // that it was ignored.
+                            String msg = sm.getString("fileDirContext.canonicalfileCheckFailed",
+                                    getDocBase(), absPath, canPath);
+                            // Log issues with configuration files at a higher level
+                            if(absPath.startsWith("/META-INF/") || absPath.startsWith("/WEB-INF/")) {
+                                log.error(msg);
+                            } else {
+                                log.warn(msg);
+                            }
+                        }
+                        return null;                    	
+                    }
                 }
             }
 
@@ -831,6 +857,34 @@ public class FileDirContext extends BaseDirContext {
 
     }
 
+    private boolean isInvalidWindowsFilename(String name) {
+        final int len = name.length();
+        if (len == 0) {
+            return false;
+        }
+        // This consistently ~10 times faster than the equivalent regular
+        // expression irrespective of input length.
+        for (int i = 0; i < len; i++) {
+            char c = name.charAt(i);
+            if (c == '\"' || c == '<' || c == '>' || c == ':') {
+                // These characters are disallowed in Windows file names and
+                // there are known problems for file names with these characters
+                // when using File#getCanonicalPath().
+                // Note: There are additional characters that are disallowed in
+                //       Windows file names but these are not known to cause
+                //       problems when using File#getCanonicalPath().
+                return true;
+            }
+        }
+        // Windows does not allow file names to end in ' ' unless specific low
+        // level APIs are used to create the files that bypass various checks.
+        // File names that end in ' ' are known to cause problems when using
+        // File#getCanonicalPath().
+        if (name.charAt(len -1) == ' ') {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * List the resources which are members of a collection.
