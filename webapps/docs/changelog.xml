@@ -106,6 +106,10 @@
       <add>
         Improve validation of storage location when using FileStore. (markt)
       </add>
+      <add>
+          <bug>64871</bug>: Log a warning if Tomcat blocks access to a file
+          because it uses symlinks. (markt)
+      </add>
     </changelog>
   </subsection>
 </section>
