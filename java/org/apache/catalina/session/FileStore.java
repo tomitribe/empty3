@@ -34,7 +34,7 @@ import org.apache.catalina.Context;
 import org.apache.catalina.Globals;
 import org.apache.catalina.Loader;
 import org.apache.catalina.Session;
-import org.apache.catalina.util.CustomObjectInputStream;
+import org.apache.catalina.util.FileUtil;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.res.StringManager;
@@ -240,6 +240,7 @@ public final class FileStore extends StoreBase {
         ObjectInputStream ois = null;
         Loader loader = null;
         ClassLoader classLoader = null;
+        ClassLoader oldThreadContextCL = Thread.currentThread().getContextClassLoader();
         try {
             fis = new FileInputStream(file.getAbsolutePath());
             BufferedInputStream bis = new BufferedInputStream(fis);
@@ -252,10 +253,10 @@ public final class FileStore extends StoreBase {
                 classLoader = loader.getClassLoader();
             }
             
-            if (classLoader != null)
-                ois = new CustomObjectInputStream(bis, classLoader);
-            else
-                ois = new ObjectInputStream(bis);
+            if (classLoader != null) {
+                Thread.currentThread().setContextClassLoader(classLoader);
+            }
+            ois = getObjectInputStream(fis);
             
             StandardSession session = (StandardSession) manager.createEmptySession();
             session.readObjectData(ois);
@@ -275,7 +276,9 @@ public final class FileStore extends StoreBase {
                 ois = null;
             }
             throw e;
-        }
+        } finally {
+		    Thread.currentThread().setContextClassLoader(oldThreadContextCL);
+		}
     }
 
 
@@ -403,9 +406,10 @@ public final class FileStore extends StoreBase {
         }
         String filename = id + FILE_EXT;
         File file = new File(storageDir, filename);
+        FileUtil storageDirUtil = new FileUtil(storageDir);
 
         // Check the file is within the storage directory
-        if (!file.getCanonicalPath().startsWith(storageDir.getCanonicalPath())) {
+        if (!storageDirUtil.isParentOf(file)) {
             log.warn(sm.getString("fileStore.invalid", file.getPath(), id));
             return null;
         }

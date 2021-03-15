@@ -61,6 +61,7 @@ import javax.xml.transform.stream.StreamSource;
 
 import org.apache.catalina.Globals;
 import org.apache.catalina.connector.RequestFacade;
+import org.apache.catalina.util.FileUtil;
 import org.apache.catalina.util.RequestUtil;
 import org.apache.catalina.util.ServerInfo;
 import org.apache.catalina.util.StringManager;
@@ -1709,7 +1710,7 @@ public class DefaultServlet
 
         // First check that the resulting path is under the provided base
         try {
-            if (!candidate.getCanonicalPath().startsWith(base.getCanonicalPath())) {
+            if (!(new FileUtil(base)).isParentOf(candidate)) {
                 return null;
             }
         } catch (IOException ioe) {

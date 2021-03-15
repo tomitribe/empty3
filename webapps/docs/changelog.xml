@@ -58,6 +58,10 @@
           <bug>64871</bug>: Log a warning if Tomcat blocks access to a file
           because it uses symlinks. (markt)
       </add>
+      <scode>
+          Test for one directory being a sub-directory of another in a consistent
+          way. (markt)
+      </scode>
       <update>
         Disable (comment out in server.xml) the AJP/1.3 connector by default.
         (markt)

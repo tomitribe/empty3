@@ -48,6 +48,7 @@ import org.apache.catalina.LifecycleEvent;
 import org.apache.catalina.LifecycleListener;
 import org.apache.catalina.core.ContainerBase;
 import org.apache.catalina.core.StandardHost;
+import org.apache.catalina.util.FileUtil;
 import org.apache.catalina.util.IOTools;
 import org.apache.catalina.util.StringManager;
 import org.apache.tomcat.util.digester.Digester;
@@ -656,8 +657,8 @@ public class HostConfig
                     docBase = new File(appBase(), context.getDocBase());
                 }
                 // If external docBase, register .xml as redeploy first
-                if (!docBase.getCanonicalPath().startsWith(
-                        appBase().getAbsolutePath() + File.separator)) {
+                FileUtil appBaseUtil = new FileUtil(appBase());
+                if (!appBaseUtil.isParentOf(docBase)) {
                     isExternal = true;
                     deployedApp.redeployResources.put
                         (contextXml.getAbsolutePath(), new Long(contextXml.lastModified()));
