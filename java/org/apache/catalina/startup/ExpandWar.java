@@ -32,6 +32,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import org.apache.catalina.Host;
+import org.apache.catalina.util.FileUtil;
 import org.apache.catalina.util.StringManager;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
@@ -136,10 +137,7 @@ public class ExpandWar {
             throw new IOException(sm.getString("expandWar.createFailed", docBase));
 
         // Expand the WAR into the new document base directory
-        String canonicalDocBasePrefix = docBase.getCanonicalPath();
-        if (!canonicalDocBasePrefix.endsWith(File.separator)) {
-            canonicalDocBasePrefix += File.separator;
-        }
+        FileUtil docBaseUtil = new FileUtil(docBase);
         JarURLConnection juc = (JarURLConnection) war.openConnection();
         juc.setUseCaches(false);
         JarFile jarFile = null;
@@ -152,8 +150,7 @@ public class ExpandWar {
                 JarEntry jarEntry = (JarEntry) jarEntries.nextElement();
                 String name = jarEntry.getName();
                 File expandedFile = new File(docBase, name);
-                if (!expandedFile.getCanonicalPath().startsWith(
-                        canonicalDocBasePrefix)) {
+                if (!docBaseUtil.isParentOf(expandedFile)) {
                     // Trying to expand outside the docBase
                     // Throw an exception to stop the deployment
                     throw new IllegalArgumentException(
@@ -241,10 +238,7 @@ public class ExpandWar {
         File docBase = new File(appBase, pathname);
 
         // Calculate the document base directory
-        String canonicalDocBasePrefix = docBase.getCanonicalPath();
-        if (!canonicalDocBasePrefix.endsWith(File.separator)) {
-            canonicalDocBasePrefix += File.separator;
-        }
+        FileUtil docBaseUtil = new FileUtil(docBase);
         JarURLConnection juc = (JarURLConnection) war.openConnection();
         juc.setUseCaches(false);
         JarFile jarFile = null;
@@ -255,8 +249,7 @@ public class ExpandWar {
                 JarEntry jarEntry = jarEntries.nextElement();
                 String name = jarEntry.getName();
                 File expandedFile = new File(docBase, name);
-                if (!expandedFile.getCanonicalPath().startsWith(
-                        canonicalDocBasePrefix)) {
+                if (!docBaseUtil.isParentOf(expandedFile)) {
                     // Entry located outside the docBase
                     // Throw an exception to stop the deployment
                     throw new IllegalArgumentException(

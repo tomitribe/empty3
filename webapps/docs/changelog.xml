@@ -120,6 +120,10 @@
         Ensure the ASF logo image is correctly displayed in ROOT, docs and
         host-manager applications. (violetagg)
       </fix>
+      <scode>
+          Test for one directory being a sub-directory of another in a consistent
+          way. (markt)
+      </scode>
     </changelog>
   </subsection>
 </section>
