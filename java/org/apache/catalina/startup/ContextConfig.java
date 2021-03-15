@@ -58,6 +58,7 @@ import org.apache.tomcat.util.digester.RuleSet;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXParseException;
+import org.apache.catalina.util.FileUtil;
 
 /**
  * Startup event listener for a <b>Context</b> that configures the properties
@@ -912,7 +913,7 @@ public class ContextConfig implements LifecycleListener {
             }
         }
 
-        if (docBase.startsWith(canonicalAppBase.getPath() + File.separatorChar)) {
+        if ((new FileUtil(canonicalAppBase)).isParentOf(docBase)) {
             docBase = docBase.substring(canonicalAppBase.getPath().length());
             docBase = docBase.replace(File.separatorChar, '/');
             if (docBase.startsWith("/")) {
