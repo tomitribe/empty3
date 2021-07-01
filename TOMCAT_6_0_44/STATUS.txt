@@ -1,0 +1,94 @@
+================================================================================
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+================================================================================
+
+                         =================================
+                         Apache Tomcat 6.0 Patch Proposals
+                         =================================
+
+
+RELEASE SHOWSTOPPERS:
+
+None
+
+
+PATCHES PROPOSED TO BACKPORT:
+  [ New proposals should be added at the end of the list ]
+
+* Align org.apache.tomcat.jni with 7.0.x and 8.0.x
+  Backport improvements to AprLifecycleListener
+  svn cp the following o.a.t.jni classes from 7.0.x:
+    Buffer
+    LibraryNotFoundError
+    Thread
+  http://people.apache.org/~markt/patches/2015-04-08-jni-align-tc6-v1.patch
+  +1: markt, kkolinko (comment below)
+  -1:
+
+   kkolinko:
+    I do not see much benefit in adding classes Buffer and Thread that
+    Tomcat 6 code does not use. But I see no technical issue to really
+    object adding them. If someone sees a benefit, feel free to go on.
+
+    Historical context:
+     1) Initial Tomcat 6 commit (r389146) does not have those classes
+         https://svn.apache.org/viewvc/tomcat/tc6.0.x/trunk/?pathrev=389146
+
+     2) They were added to trunk in r1442914 (2013-02-06)
+         https://svn.apache.org/r1442914
+
+        A thread of that time mentions that those classes originate from
+        Apache Mina. "Again: Java classes in tcnative" (2013-02-05)
+         http://markmail.org/message/pohmyvfznjrpmtr2
+
+     3) "Re: r1672047" thread (2015-04-08)
+         http://markmail.org/message/ey2agr4eg5ws5stc
+
+
+* Fix https://bz.apache.org/bugzilla/show_bug.cgi?id=57896
+  Backport org.apache.tomcat.util.http.ServerCookie.PRESERVE_COOKIE_HEADER option
+
+  Like in Tomcat 7, the fix is to be applied to the call to
+  Cookies.processCookieHeader(byte[], int, int)
+
+  In Tomcat 6 there is also a call to Cookies.processCookieHeader(String) when
+  header value is already a String, but that call does not need this fix, as
+  String is immutable, and that method does not perform decoding of embedded '\"'.
+  It only strips surrounding '"'s in a value.
+
+  http://svn.apache.org/r1675821  (fix)
+  http://svn.apache.org/r1678180  (documentation)
+  +1: kkolinko
+  -1:
+
+
+PATCHES/ISSUES THAT ARE STALLED:
+
+* Fix https://issues.apache.org/bugzilla/show_bug.cgi?id=44312
+  Log an error if there is a conflict between Host and Alias names.
+  Improve host management methods in Mapper to avoid occasionally removing
+  a wrong host. Check that host management operations are performed on
+  the host and not on an alias.
+  1) https://issues.apache.org/bugzilla/attachment.cgi?id=31744
+  2) http://svn.apache.org/r1608653
+  3) http://svn.apache.org/r1608833
+  4) TestMapper changes from http://svn.apache.org/r1608831
+  +1: kkolinko, remm, schultz
+  -1:
+   kkolinko: Good for occasional review, but as backporting r1608833 won't
+   be trivial I'd have to update the patch.
+   schultz: r1608833 is good, but it does not look like it is absolutely
+   required to fix BZ 44312.
