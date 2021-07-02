@@ -67,6 +67,10 @@
         <bug>57675</bug>: Correctly quote strings when using the extended
         access log. (markt)
       </fix>
+      <fix>
+        When configuring the JMX remote listener, specify the allowed types for
+        the credentials. (markt)
+      </fix>
     </changelog>
   </subsection>
   <subsection name="Coyote">
@@ -130,6 +134,10 @@
         will not start unless the <code>secret</code> attribute is configured to
         a non-null, non-zero length String. (markt)
       </add>
+      <fix>
+        Improve handing of overflow in the UTF-8 decoder with supplementary
+        characters. (markt)
+      </fix>
     </changelog>
   </subsection>
   <subsection name="Web applications">
