@@ -58,7 +58,7 @@ public final class FileStore
 
 
     private static final Log log = LogFactory.getLog(FileStore.class);
-    private static final StringManager sm = StringManager.getManager(FileStore.class.getPackageName());
+    private static final StringManager sm = StringManager.getManager("org.apache.catalina.session");
 
 
     // ----------------------------------------------------- Constants
