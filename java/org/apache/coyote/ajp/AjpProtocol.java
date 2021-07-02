@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 import javax.management.MBeanRegistration;
 import javax.management.MBeanServer;
@@ -37,6 +38,7 @@ import org.apache.coyote.ActionHook;
 import org.apache.coyote.Adapter;
 import org.apache.coyote.RequestGroupInfo;
 import org.apache.coyote.RequestInfo;
+import org.apache.tomcat.util.compat.JreCompat;
 import org.apache.tomcat.util.modeler.Registry;
 import org.apache.tomcat.util.net.AbstractEndpoint;
 import org.apache.tomcat.util.net.JIoEndpoint;
@@ -70,6 +72,8 @@ public class AjpProtocol extends AbstractProtocol
 
 
     public AjpProtocol() {
+        endpoint = new JIoEndpoint();
+        endpoint.setAddress(JreCompat.getInstance().getLoopbackAddress());
         cHandler = new AjpConnectionHandler(this);
         setSoLinger(Constants.DEFAULT_CONNECTION_LINGER);
         setSoTimeout(Constants.DEFAULT_CONNECTION_TIMEOUT);
@@ -90,7 +94,7 @@ public class AjpProtocol extends AbstractProtocol
     /**
      * Associated java.io endpoint.
      */
-    protected JIoEndpoint endpoint = new JIoEndpoint();
+    protected JIoEndpoint endpoint;
 
     protected final AbstractEndpoint getEndpoint() {
         return endpoint;
@@ -172,6 +176,13 @@ public class AjpProtocol extends AbstractProtocol
 
 
     public void start() throws Exception {
+    	if (getSecretRequired()) {
+            String secret = getSecret();
+            if (secret == null || secret.length() == 0) {
+                throw new IllegalArgumentException(sm.getString("ajpprotocol.nosecret"));
+            }
+        }
+    	
         if (this.domain != null ) {
             try {
                 tpOname = new ObjectName
@@ -287,7 +298,68 @@ public class AjpProtocol extends AbstractProtocol
      * Required secret.
      */
     protected String requiredSecret = null;
-    public void setRequiredSecret(String requiredSecret) { this.requiredSecret = requiredSecret; }
+    private String secret = null;
+
+    /**
+     * Set the secret that must be included with every request.
+     *
+     * @param secret The required secret
+     */
+    public void setSecret(String secret) {
+        this.secret = secret;
+        this.requiredSecret = secret;
+    }
+    
+    protected String getSecret() {
+        return secret;
+    }
+    
+    /**
+     * Set the required secret that must be included with every request.
+     *
+     * @param requiredSecret The required secret
+     *
+     * @deprecated Replaced by {@link #setSecret(String)}.
+     *             Will be removed in Tomcat 11 onwards
+     */
+    @Deprecated
+    public void setRequiredSecret(String requiredSecret) { setSecret(requiredSecret); }
+    
+    /**
+     * @return The current secret
+     *
+     * @deprecated Replaced by {@link #getSecret()}.
+     *             Will be removed in Tomcat 11 onwards
+     */
+    @Deprecated
+    protected String getRequiredSecret() {
+        return getSecret();
+    }
+
+
+    private boolean secretRequired = true;
+    public void setSecretRequired(boolean secretRequired) {
+        this.secretRequired = secretRequired;
+    }
+    
+    public boolean getSecretRequired() {
+        return secretRequired;
+    }
+    
+    private Pattern allowedRequestAttributesPatternPattern;
+    
+    public void setAllowedRequestAttributesPattern(String allowedRequestAttributesPattern) {
+        this.allowedRequestAttributesPatternPattern = Pattern.compile(allowedRequestAttributesPattern);
+    }
+    
+    public String getAllowedRequestAttributesPattern() {
+        return allowedRequestAttributesPatternPattern.pattern();
+    }
+    
+    protected Pattern getAllowedRequestAttributesPatternPattern() {
+        return allowedRequestAttributesPatternPattern;
+    }
+   
     
     /**
      * AJP packet size.
@@ -423,9 +495,11 @@ public class AjpProtocol extends AbstractProtocol
             AjpProcessor processor = new AjpProcessor(proto.packetSize, proto.endpoint);
             processor.setAdapter(proto.adapter);
             processor.setTomcatAuthentication(proto.tomcatAuthentication);
+            processor.setSecret(proto.getSecret());
             processor.setRequiredSecret(proto.requiredSecret);
             processor.setKeepAliveTimeout(proto.keepAliveTimeout);
             processor.setClientCertProvider(proto.getClientCertProvider());
+            processor.setAllowedRequestAttributesPatternPattern(proto.getAllowedRequestAttributesPatternPattern());
             register(processor);
             return processor;
         }
