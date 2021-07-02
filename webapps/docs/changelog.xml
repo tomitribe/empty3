@@ -138,6 +138,9 @@
         Improve handing of overflow in the UTF-8 decoder with supplementary
         characters. (markt)
       </fix>
+      <add>
+        Improve validation of storage location when using FileStore. (markt)
+      </add>
     </changelog>
   </subsection>
   <subsection name="Web applications">

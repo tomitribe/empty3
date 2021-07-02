@@ -39,6 +39,9 @@ import org.apache.catalina.Loader;
 import org.apache.catalina.Session;
 import org.apache.catalina.Store;
 import org.apache.catalina.util.CustomObjectInputStream;
+import org.apache.juli.logging.Log;
+import org.apache.juli.logging.LogFactory;
+import org.apache.tomcat.util.res.StringManager;
 
 
 /**
@@ -52,6 +55,10 @@ import org.apache.catalina.util.CustomObjectInputStream;
 
 public final class FileStore
     extends StoreBase implements Store {
+
+
+    private static final Log log = LogFactory.getLog(FileStore.class);
+    private static final StringManager sm = StringManager.getManager(FileStore.class.getPackageName());
 
 
     // ----------------------------------------------------- Constants
@@ -425,13 +432,20 @@ public final class FileStore
      * @param id The ID of the Session to be retrieved. This is
      *    used in the file naming.
      */
-    private File file(String id) {
-
-        if (this.directory == null) {
+    private File file(String id) throws IOException {
+        File storageDir = directory();
+        if (storageDir == null) {
             return (null);
         }
+
         String filename = id + FILE_EXT;
-        File file = new File(directory(), filename);
+        File file = new File(storageDir, filename);
+        // Check the file is within the storage directory
+        if (!file.getCanonicalPath().startsWith(storageDir.getCanonicalPath())) {
+            log.warn(sm.getString("fileStore.invalid", file.getPath(), id));
+            return null;
+        }
+
         return (file);
 
     }
