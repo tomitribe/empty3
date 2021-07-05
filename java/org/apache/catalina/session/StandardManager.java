@@ -43,7 +43,7 @@ import org.apache.catalina.Loader;
 import org.apache.catalina.Session;
 import org.apache.catalina.util.CustomObjectInputStream;
 import org.apache.catalina.util.LifecycleSupport;
-
+import org.apache.juli.logging.Log;
 import org.apache.catalina.security.SecurityUtil;
 
 /**
@@ -349,9 +349,11 @@ public class StandardManager
         ObjectInputStream ois = null;
         Loader loader = null;
         ClassLoader classLoader = null;
+        Log logger = null;
         try {
             fis = new FileInputStream(file.getAbsolutePath());
             bis = new BufferedInputStream(fis);
+            logger = container.getLogger();
             if (container != null) {
                 loader = container.getLoader();
             }
@@ -362,7 +364,9 @@ public class StandardManager
                 if (log.isDebugEnabled()) {
                     log.debug("Creating custom object input stream for class loader ");
                 }
-                ois = new CustomObjectInputStream(bis, classLoader);
+                ois = new CustomObjectInputStream(bis, classLoader, logger,
+                                     getSessionAttributeValueClassNamePattern(),
+                                     getWarnOnSessionAttributeFilterFailure());
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("Creating standard object input stream");

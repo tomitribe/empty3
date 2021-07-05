@@ -271,8 +271,31 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
 
 
-    // ------------------------------------------------------------- Properties
+    // ------------------------------------------------------------ Constructors
 
+    public ManagerBase() {
+        if (Globals.IS_SECURITY_ENABLED) {
+            // Minimum set required for default distribution/persistence to work
+            // plus String
+            setSessionAttributeValueClassNameFilter(
+                    "java\\.lang\\.(?:Boolean|Integer|Long|Number|String)");
+            setWarnOnSessionAttributeFilterFailure(true);
+        }
+    }
+
+
+    // -------------------------------------------------------------- Properties
+
+    /**
+     * Obtain the regular expression used to filter session attribute based on
+     * attribute name. The regular expression is anchored so it must match the
+     * entire name
+     *
+     * @return The regular expression currently used to filter attribute names.
+     *         {@code null} means no filter is applied. If an empty string is
+     *         specified then no names will match the filter and all attributes
+     *         will be blocked.
+     */
     public String getSessionAttributeNameFilter() {
         if (sessionAttributeNamePattern == null) {
             return null;
@@ -361,6 +384,19 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
         return warnOnSessionAttributeFilterFailure;
     }
 
+
+    /**
+     * Configure whether or not a warn level log message should be generated if
+     * a session attribute is not persisted / replicated / restored.
+     *
+     * @param warnOnSessionAttributeFilterFailure {@code true} if the
+     *            warn level message should be generated
+     *
+     */
+    public void setWarnOnSessionAttributeFilterFailure(
+            boolean warnOnSessionAttributeFilterFailure) {
+        this.warnOnSessionAttributeFilterFailure = warnOnSessionAttributeFilterFailure;
+    }
 
 
     /**
