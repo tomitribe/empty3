@@ -43,8 +43,7 @@ public class SSIPrintenv implements SSICommand {
             Iterator iter = variableNames.iterator();
             while (iter.hasNext()) {
                 String variableName = (String)iter.next();
-                String variableValue = ssiMediator
-                        .getVariableValue(variableName);
+                String variableValue = ssiMediator.getVariableValue(variableName, "entity");
                 //This shouldn't happen, since all the variable names must
                 // have values
                 if (variableValue == null) {
