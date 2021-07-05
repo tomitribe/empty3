@@ -355,41 +355,39 @@ public class DefaultServlet
      * @param request The servlet request we are processing
      */
     protected String getRelativePath(HttpServletRequest request) {
+        return getRelativePath(request, false);
+    }
+
+    protected String getRelativePath(HttpServletRequest request, boolean allowEmptyPath) {
         // IMPORTANT: DefaultServlet can be mapped to '/' or '/path/*' but always
         // serves resources from the web app root with context rooted paths.
         // i.e. it can not be used to mount the web app root under a sub-path
         // This method must construct a complete context rooted path, although
         // subclasses can change this behaviour.
+        String servletPath;
+        String pathInfo;
 
-        // Are we being processed by a RequestDispatcher.include()?
         if (request.getAttribute(Globals.INCLUDE_REQUEST_URI_ATTR) != null) {
-            String result = (String) request.getAttribute(
-                                            Globals.INCLUDE_PATH_INFO_ATTR);
-            if (result == null) {
-                result = (String) request.getAttribute(
-                                            Globals.INCLUDE_SERVLET_PATH_ATTR);
-            } else {
-                result = (String) request.getAttribute(
-                                  Globals.INCLUDE_SERVLET_PATH_ATTR) + result;
-            }
-            if ((result == null) || (result.equals(""))) {
-                result = "/";
-            }
-            return (result);
-        }
-
-        // No, extract the desired path directly from the request
-        String result = request.getPathInfo();
-        if (result == null) {
-            result = request.getServletPath();
+            // For includes, get the info from the attributes
+            pathInfo = (String) request.getAttribute(Globals.INCLUDE_PATH_INFO_ATTR);
+            servletPath = (String) request.getAttribute(Globals.INCLUDE_SERVLET_PATH_ATTR);
         } else {
-            result = request.getServletPath() + result;
+            pathInfo = request.getPathInfo();
+            servletPath = request.getServletPath();
         }
-        if ((result == null) || (result.equals(""))) {
-            result = "/";
-        }
-        return (result);
 
+        StringBuilder result = new StringBuilder();
+        if (servletPath.length() > 0) {
+            result.append(servletPath);
+        }
+        if (pathInfo != null) {
+            result.append(pathInfo);
+        }
+        if (result.length() == 0 && !allowEmptyPath) {
+            result.append('/');
+        }
+
+        return result.toString();
     }
 
 
@@ -752,7 +750,8 @@ public class DefaultServlet
         throws IOException, ServletException {
 
         // Identify the requested resource path
-        String path = getRelativePath(request);
+        String path = getRelativePath(request, true);
+
         if (debug > 0) {
             if (content)
                 log("DefaultServlet.serveResource:  Serving resource '" +
@@ -760,6 +759,12 @@ public class DefaultServlet
             else
                 log("DefaultServlet.serveResource:  Serving resource '" +
                     path + "' headers only");
+        }
+
+        if (path.length() == 0) {
+            // Context root redirect
+            doDirectoryRedirect(request, response);
+            return;
         }
 
         CacheEntry cacheEntry = resources.lookupCache(path);
@@ -835,6 +840,11 @@ public class DefaultServlet
         long contentLength = -1L;
 
         if (cacheEntry.context != null) {
+
+            if (!path.endsWith("/")) {
+                doDirectoryRedirect(request, response);
+                return;
+            }
 
             // Skip directory listings if we have been configured to
             // suppress them
@@ -1018,6 +1028,16 @@ public class DefaultServlet
 
     }
 
+    private void doDirectoryRedirect(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        StringBuilder location = new StringBuilder(request.getRequestURI());
+        location.append('/');
+        if (request.getQueryString() != null) {
+            location.append('?');
+            location.append(request.getQueryString());
+        }
+        response.sendRedirect(response.encodeRedirectURL(location.toString()));
+    }
 
     /**
      * Parse the content-range header.
