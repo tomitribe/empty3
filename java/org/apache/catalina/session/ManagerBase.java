@@ -362,19 +362,6 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
 
 
-    /**
-     * Configure whether or not a warn level log message should be generated if
-     * a session attribute is not persisted / replicated / restored.
-     *
-     * @param warnOnSessionAttributeFilterFailure {@code true} if the
-     *            warn level message should be generated
-     *
-     */
-    public void setWarnOnSessionAttributeFilterFailure(
-            boolean warnOnSessionAttributeFilterFailure) {
-        this.warnOnSessionAttributeFilterFailure = warnOnSessionAttributeFilterFailure;
-    }
-
 
     /**
      * Return the message digest algorithm for this Manager.
