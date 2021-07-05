@@ -451,9 +451,7 @@ public class StandardSession
      * Return the Manager within which this Session is valid.
      */
     public Manager getManager() {
-
-        return (this.manager);
-
+        return this.manager;
     }
 
 
@@ -463,9 +461,7 @@ public class StandardSession
      * @param manager The new Manager
      */
     public void setManager(Manager manager) {
-
         this.manager = manager;
-
     }
 
 
@@ -1513,6 +1509,11 @@ public class StandardSession
             if (manager.getContainer().getLogger().isDebugEnabled())
                 manager.getContainer().getLogger().debug("  loading attribute '" + name +
                     "' with value '" + value + "'");
+            // Handle the case where the filter configuration was changed while
+            // the web application was stopped.
+            if (exclude(name, value)) {
+                continue;
+            }
             attributes.put(name, value);
         }
         isValid = isValidSave;
@@ -1566,10 +1567,9 @@ public class StandardSession
         ArrayList saveValues = new ArrayList();
         for (int i = 0; i < keys.length; i++) {
             Object value = attributes.get(keys[i]);
-            if (value == null)
+            if (value == null) {
                 continue;
-            else if ( (value instanceof Serializable) 
-                    && (!exclude(keys[i]) )) {
+            } else if (isAttributeDistributable(keys[i], value) && !exclude(keys[i], value)) {
                 saveNames.add(keys[i]);
                 saveValues.add(value);
             } else {
@@ -1607,14 +1607,45 @@ public class StandardSession
      * Exclude standard attributes that cannot be serialized.
      * @param name the attribute's name
      */
+    @Deprecated
     protected boolean exclude(String name){
+        return exclude(name, null);
+    }
 
-        for (int i = 0; i < excludedAttributes.length; i++) {
-            if (name.equalsIgnoreCase(excludedAttributes[i]))
-                return true;
+
+    /**
+     * Should the given session attribute be excluded? This implementation
+     * checks:
+     * <ul>
+     * <li>{@link Constants#excludedAttributeNames}</li>
+     * <li>{@link Manager#willAttributeDistribute(String, Object)}</li>
+     * </ul>
+     * Note: This method deliberately does not check
+     *       {@link #isAttributeDistributable(String, Object)} which is kept
+     *       separate to support the checks required in
+     *       {@link #setAttribute(String, Object, boolean)}
+     *
+     * @param name  The attribute name
+     * @param value The attribute value
+     *
+     * @return {@code true} if the attribute should be excluded from
+     *         distribution, otherwise {@code false}
+     */
+    protected boolean exclude(String name, Object value) {
+        if (Constants.excludedAttributeNames.contains(name)) {
+            return true;
         }
 
-        return false;
+        // Manager is required for remaining check
+        Manager manager = getManager();
+        if (manager == null) {
+            // Manager may be null during replication of new sessions in a
+            // cluster. Avoid the NPE.
+            return false;
+        }
+
+        // Last check so use a short-cut
+        return !manager.willAttributeDistribute(name, value);
     }
 
 

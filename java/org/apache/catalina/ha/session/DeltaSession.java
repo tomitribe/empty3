@@ -548,38 +548,6 @@ public class DeltaSession extends StandardSession implements Externalizable,Clus
     // ----------------------------------------------HttpSession Public Methods
 
 
-
-    /**
-     * Check whether the Object can be distributed.
-     * The object is always distributable, if the cluster manager
-     * decides to never distribute it.
-     * @param name The name of the attribute to check
-     * @param value The value of the attribute to check
-     * @return true if the attribute is distributable, false otherwise
-     */
-    @Override
-    protected boolean isAttributeDistributable(String name, Object value) {
-        if (manager instanceof ClusterManagerBase &&
-            !((ClusterManagerBase)manager).willAttributeDistribute(name))
-            return true;
-        return super.isAttributeDistributable(name, value);
-    }
-
-    /**
-     * Exclude attributes from replication.
-     * @param name the attribute's name
-     * @return true if attribute should not be replicated
-     */
-    @Override
-    protected boolean exclude(String name) {
-
-        if (super.exclude(name))
-            return true;
-        if (manager instanceof ClusterManagerBase)
-            return !((ClusterManagerBase)manager).willAttributeDistribute(name);
-        return false;
-    }
-
     /**
      * Remove the object bound with the specified name from this session. If the
      * session does not have an object bound with this name, this method does
@@ -645,7 +613,7 @@ public class DeltaSession extends StandardSession implements Externalizable,Clus
         try {
             lock();
             super.setAttribute(name,value, notify);
-            if (addDeltaRequest && deltaRequest != null && !exclude(name)) {
+            if (addDeltaRequest && deltaRequest != null && !exclude(name, value)) {
                 deltaRequest.setAttribute(name, value);
             }
         } finally {
@@ -707,6 +675,11 @@ public class DeltaSession extends StandardSession implements Externalizable,Clus
             Object value = (Object) stream.readObject();
             if ( (value instanceof String) && (value.equals(NOT_SERIALIZED)))
                 continue;
+            // Handle the case where the filter configuration was changed while
+            // the web application was stopped.
+            if (exclude(name, value)) {
+                continue;
+            }
             attributes.put(name, value);
         }
         isValid = isValidSave;

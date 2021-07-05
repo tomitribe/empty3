@@ -18,6 +18,12 @@
 
 package org.apache.catalina.session;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.apache.catalina.Globals;
+
 /**
  * Manifest constants for the <code>org.apache.catalina.session</code>
  * package.
@@ -28,5 +34,17 @@ package org.apache.catalina.session;
 public class Constants {
 
     public static final String Package = "org.apache.catalina.session";
+    
+    /**
+     * Set of session attribute names used internally by Tomcat that should
+     * always be removed from the session before it is persisted, replicated or
+     * equivalent.
+     */
+    public static final Set<String> excludedAttributeNames;
 
+    static {
+        Set<String> names = new HashSet<String>();
+        names.add(Globals.SUBJECT_ATTR);
+        excludedAttributeNames = Collections.unmodifiableSet(names);
+    }
 }

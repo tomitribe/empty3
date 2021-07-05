@@ -20,7 +20,6 @@ package org.apache.catalina.ha.session;
 import java.beans.PropertyChangeListener;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.regex.Pattern;
 
 import org.apache.catalina.Container;
 import org.apache.catalina.Lifecycle;
@@ -34,33 +33,20 @@ import org.apache.catalina.tribes.io.ReplicationStream;
  * @author Filip Hanik
  *
  */
-
 public abstract class ClusterManagerBase extends ManagerBase implements Lifecycle, PropertyChangeListener, ClusterManager{
-    
-
-    /**
-     * The pattern used for including session attributes to
-     *  replication, e.g. <code>^(userName|sessionHistory)$</code>.
-     *  If not set, all session attributes will be eligible for replication.
-     */
-    private String sessionAttributeFilter = null;
-
-    /**
-     * The compiled pattern used for including session attributes to
-     * replication, e.g. <code>^(userName|sessionHistory)$</code>.
-     * If not set, all session attributes will be eligible for replication.
-     */
-    private Pattern sessionAttributePattern = null;
-
 
     /**
      * Return the string pattern used for including session attributes
      * to replication.
      *
      * @return the sessionAttributeFilter
+     *
+     * @deprecated Use {@link #getSessionAttributeNameFilter()}. Will be removed
+     *             in Tomcat 9.0.x
      */
+    @Deprecated
     public String getSessionAttributeFilter() {
-        return sessionAttributeFilter;
+        return getSessionAttributeNameFilter();
     }
 
     /**
@@ -72,28 +58,13 @@ public abstract class ClusterManagerBase extends ManagerBase implements Lifecycl
      *
      * @param sessionAttributeFilter
      *            the filter name pattern to set
-     */
-    public void setSessionAttributeFilter(String sessionAttributeFilter) {
-        if (sessionAttributeFilter == null
-            || sessionAttributeFilter.trim().equals("")) {
-            this.sessionAttributeFilter = null;
-            sessionAttributePattern = null;
-        } else {
-            this.sessionAttributeFilter = sessionAttributeFilter;
-            sessionAttributePattern = Pattern.compile(sessionAttributeFilter);
-        }
-    }
-
-    /**
-     * Check whether the given session attribute should be distributed
      *
-     * @return true if the attribute should be distributed
+     * @deprecated Use {@link #setSessionAttributeNameFilter(String)}. Will be
+     *             removed in Tomcat 9.0.x
      */
-    public boolean willAttributeDistribute(String name) {
-        if (sessionAttributePattern == null) {
-            return true;
-        }
-        return sessionAttributePattern.matcher(name).matches();
+    @Deprecated
+    public void setSessionAttributeFilter(String sessionAttributeFilter) {
+        setSessionAttributeNameFilter(sessionAttributeFilter);
     }
 
     public static ClassLoader[] getClassLoaders(Container container) {

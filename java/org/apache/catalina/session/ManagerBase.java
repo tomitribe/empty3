@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import javax.management.MBeanRegistration;
 import javax.management.MBeanServer;
@@ -245,9 +247,13 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * The property change support for this component.
      */
     protected PropertyChangeSupport support = new PropertyChangeSupport(this);
-    
-    // ------------------------------------------------------------- Security classes
 
+    private Pattern sessionAttributeNamePattern;
+    private Pattern sessionAttributeValueClassNamePattern;
+    private boolean warnOnSessionAttributeFilterFailure;
+
+
+    // ------------------------------------------------------------- Security classes
 
     private class PrivilegedSetRandomFile
             implements PrivilegedAction<Void>{
@@ -266,6 +272,109 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
 
 
     // ------------------------------------------------------------- Properties
+
+    public String getSessionAttributeNameFilter() {
+        if (sessionAttributeNamePattern == null) {
+            return null;
+        }
+        return sessionAttributeNamePattern.toString();
+    }
+
+
+    public void setSessionAttributeNameFilter(String sessionAttributeNameFilter) {
+        if (sessionAttributeNameFilter == null || sessionAttributeNameFilter.length() == 0) {
+            sessionAttributeNamePattern = null;
+        } else {
+            sessionAttributeNamePattern = Pattern.compile(sessionAttributeNameFilter);
+        }
+    }
+
+
+    protected Pattern getSessionAttributeNamePattern() {
+        return sessionAttributeNamePattern;
+    }
+
+
+    /**
+     * Obtain the regular expression used to filter session attribute based on
+     * the implementation class of the value. The regular expression is anchored
+     * and must match the fully qualified class name.
+     *
+     * @return The regular expression currently used to filter class names.
+     *         {@code null} means no filter is applied. If an empty string is
+     *         specified then no names will match the filter and all attributes
+     *         will be blocked.
+     */
+    public String getSessionAttributeValueClassNameFilter() {
+        if (sessionAttributeValueClassNamePattern == null) {
+            return null;
+        }
+        return sessionAttributeValueClassNamePattern.toString();
+    }
+
+
+    /**
+     * Provides {@link #getSessionAttributeValueClassNameFilter()} as a
+     * pre-compiled regular expression pattern.
+     *
+     * @return The pre-compiled pattern used to filter session attributes based
+     *         on the implementation class name of the value. {@code null} means
+     *         no filter is applied.
+     */
+    protected Pattern getSessionAttributeValueClassNamePattern() {
+        return sessionAttributeValueClassNamePattern;
+    }
+
+
+    /**
+     * Set the regular expression to use to filter classes used for session
+     * attributes. The regular expression is anchored and must match the fully
+     * qualified class name.
+     *
+     * @param sessionAttributeValueClassNameFilter The regular expression to use
+     *            to filter session attributes based on class name. Use {@code
+     *            null} if no filtering is required. If an empty string is
+     *           specified then no names will match the filter and all
+     *           attributes will be blocked.
+     *
+     * @throws PatternSyntaxException If the expression is not valid
+     */
+    public void setSessionAttributeValueClassNameFilter(String sessionAttributeValueClassNameFilter)
+            throws PatternSyntaxException {
+        if (sessionAttributeValueClassNameFilter == null ||
+                sessionAttributeValueClassNameFilter.length() == 0) {
+            sessionAttributeValueClassNamePattern = null;
+        } else {
+            sessionAttributeValueClassNamePattern =
+                    Pattern.compile(sessionAttributeValueClassNameFilter);
+        }
+    }
+
+
+    /**
+     * Should a warn level log message be generated if a session attribute is
+     * not persisted / replicated / restored.
+     *
+     * @return {@code true} if a warn level log message should be generated
+     */
+    public boolean getWarnOnSessionAttributeFilterFailure() {
+        return warnOnSessionAttributeFilterFailure;
+    }
+
+
+    /**
+     * Configure whether or not a warn level log message should be generated if
+     * a session attribute is not persisted / replicated / restored.
+     *
+     * @param warnOnSessionAttributeFilterFailure {@code true} if the
+     *            warn level message should be generated
+     *
+     */
+    public void setWarnOnSessionAttributeFilterFailure(
+            boolean warnOnSessionAttributeFilterFailure) {
+        this.warnOnSessionAttributeFilterFailure = warnOnSessionAttributeFilterFailure;
+    }
+
 
     /**
      * Return the message digest algorithm for this Manager.
@@ -295,17 +404,10 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * Return the Container with which this Manager is associated.
      */
     public Container getContainer() {
-
-        return (this.container);
-
+        return this.container;
     }
 
 
-    /**
-     * Set the Container with which this Manager is associated.
-     *
-     * @param container The newly associated Container
-     */
     public void setContainer(Container container) {
 
         Container oldContainer = this.container;
@@ -314,7 +416,8 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
 
 
-    /** Returns the name of the implementation class.
+    /**
+     * @return The name of the implementation class.
      */
     public String getClassName() {
         return this.getClass().getName();
@@ -368,20 +471,18 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
 
 
     /**
-     * Set the distributable flag for the sessions supported by this
-     * Manager.  If this flag is set, all user data objects added to
-     * sessions associated with this manager must implement Serializable.
-     *
-     * @param distributable The new distributable flag
+     * {@inheritDoc}
+     * <p>
+     * Session attributes do not need to implement {@link java.io.Serializable}
+     * if they are excluded from distribution by
+     * {@link #willAttributeDistribute(String, Object)}.
      */
     public void setDistributable(boolean distributable) {
-
         boolean oldDistributable = this.distributable;
         this.distributable = distributable;
         support.firePropertyChange("distributable",
                                    new Boolean(oldDistributable),
                                    new Boolean(this.distributable));
-
     }
 
 
@@ -398,7 +499,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
             boolean apr = false;
             try {
                 String methodName = "random";
-                Class paramTypes[] = new Class[2];
+                Class<?> paramTypes[] = new Class[2];
                 paramTypes[0] = result.getClass();
                 paramTypes[1] = int.class;
                 Object paramValues[] = new Object[2];
@@ -513,7 +614,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
 
 
     /**
-     * Return the descriptive short name of this Manager implementation.
+     * @return The descriptive short name of this Manager implementation.
      */
     public String getName() {
 
@@ -608,7 +709,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
             }
             try {
                 // Construct and seed a new random number generator
-                Class clazz = Class.forName(randomClass);
+                Class<?> clazz = Class.forName(randomClass);
                 this.random = (Random) clazz.newInstance();
                 this.random.setSeed(seed);
             } catch (Exception e) {
@@ -625,8 +726,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
             }
         }
         
-        return (this.random);
-
+        return this.random;
     }
 
 
@@ -634,9 +734,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * Return the random number generator class name.
      */
     public String getRandomClass() {
-
-        return (this.randomClass);
-
+        return this.randomClass;
     }
 
 
@@ -646,12 +744,9 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * @param randomClass The new random number generator class name
      */
     public void setRandomClass(String randomClass) {
-
         String oldRandomClass = this.randomClass;
         this.randomClass = randomClass;
-        support.firePropertyChange("randomClass", oldRandomClass,
-                                   this.randomClass);
-
+        support.firePropertyChange("randomClass", oldRandomClass, this.randomClass);
     }
 
 
@@ -684,12 +779,10 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
     
     /**
-     * Return the frequency of manager checks.
+     * @return The frequency of manager checks.
      */
     public int getProcessExpiresFrequency() {
-
-        return (this.processExpiresFrequency);
-
+        return this.processExpiresFrequency;
     }
 
     /**
@@ -708,10 +801,10 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
         support.firePropertyChange("processExpiresFrequency",
                                    new Integer(oldProcessExpiresFrequency),
                                    new Integer(this.processExpiresFrequency));
-
     }
+    
+    
     // --------------------------------------------------------- Public Methods
-
 
     /**
      * Implements the Manager interface, direct call to processExpires
@@ -770,7 +863,6 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
         if( oname==null ) {
             try {
                 StandardContext ctx=(StandardContext)this.getContainer();
-                Engine eng=(Engine)ctx.getParent().getParent();
                 domain=ctx.getEngineName();
                 distributable = ctx.getDistributable();
                 StandardHost hst=(StandardHost)ctx.getParent();
@@ -845,6 +937,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      *  instantiated for any reason
      * @deprecated
      */
+    @Deprecated
     public Session createSession() {
         return createSession(null);
     }
@@ -938,11 +1031,10 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      *  processing this request
      */
     public Session findSession(String id) throws IOException {
-
-        if (id == null)
-            return (null);
-        return (Session) sessions.get(id);
-
+        if (id == null) {
+            return null;
+        }
+        return sessions.get(id);
     }
 
 
@@ -951,9 +1043,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * If this Manager has no active Sessions, a zero-length array is returned.
      */
     public Session[] findSessions() {
-
         return sessions.values().toArray(new Session[0]);
-
     }
 
 
@@ -963,9 +1053,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * @param session Session to be removed
      */
     public void remove(Session session) {
-
         sessions.remove(session.getIdInternal());
-
     }
 
 
@@ -975,9 +1063,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * @param listener The listener to remove
      */
     public void removePropertyChangeListener(PropertyChangeListener listener) {
-
         support.removePropertyChangeListener(listener);
-
     }
 
 
@@ -999,8 +1085,51 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
     
     
-    // ------------------------------------------------------ Protected Methods
+    /**
+     * {@inheritDoc}
+     * <p>
+     * This implementation excludes session attributes from distribution if the:
+     * <ul>
+     * <li>attribute name matches {@link #getSessionAttributeNameFilter()}</li>
+     * </ul>
+     */
+    public boolean willAttributeDistribute(String name, Object value) {
+        Pattern sessionAttributeNamePattern = getSessionAttributeNamePattern();
+        if (sessionAttributeNamePattern != null) {
+            if (!sessionAttributeNamePattern.matcher(name).matches()) {
+                if (getWarnOnSessionAttributeFilterFailure() || log.isDebugEnabled()) {
+                    String msg = sm.getString("managerBase.sessionAttributeNameFilter",
+                            name, sessionAttributeNamePattern);
+                    if (getWarnOnSessionAttributeFilterFailure()) {
+                        log.warn(msg);
+                    } else {
+                        log.debug(msg);
+                    }
+                }
+                return false;
+            }
+        }
 
+        Pattern sessionAttributeValueClassNamePattern = getSessionAttributeValueClassNamePattern();
+        if (value != null && sessionAttributeValueClassNamePattern != null) {
+            if (!sessionAttributeValueClassNamePattern.matcher(
+                    value.getClass().getName()).matches()) {
+                if (getWarnOnSessionAttributeFilterFailure() || log.isDebugEnabled()) {
+                    String msg = sm.getString("managerBase.sessionAttributeValueClassNameFilter",
+                            name, value.getClass().getName(), sessionAttributeNamePattern);
+                    if (getWarnOnSessionAttributeFilterFailure()) {
+                        log.warn(msg);
+                    } else {
+                        log.debug(msg);
+                    }
+                }
+                return false;
+            }
+        }
+
+        return true;
+    }
+    // ------------------------------------------------------ Protected Methods
 
     /**
      * Get new session class to be used in the doLoad() method.
@@ -1098,7 +1227,7 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     public Engine getEngine() {
         Engine e = null;
         for (Container c = getContainer(); e == null && c != null ; c = c.getParent()) {
-            if (c != null && c instanceof Engine) {
+            if (c instanceof Engine) {
                 e = (Engine)c;
             }
         }
@@ -1311,12 +1440,13 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
 
 
     /** 
-     * For debugging: return a list of all session ids currently active
+     * For debugging.
      *
+     * @return A space separated list of all session IDs currently active
      */
     public String listSessionIds() {
-        StringBuffer sb=new StringBuffer();
-        Iterator keys = sessions.keySet().iterator();
+        StringBuilder sb = new StringBuilder();
+        Iterator<String> keys = sessions.keySet().iterator();
         while (keys.hasNext()) {
             sb.append(keys.next()).append(" ");
         }
@@ -1325,14 +1455,16 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
 
 
     /** 
-     * For debugging: get a session attribute
+     * For debugging.
      *
-     * @param sessionId
-     * @param key
-     * @return The attribute value, if found, null otherwise
+     * @param sessionId The ID for the session of interest
+     * @param key       The key for the attribute to obtain
+     *
+     * @return The attribute value for the specified session, if found, null
+     *         otherwise
      */
     public String getSessionAttribute( String sessionId, String key ) {
-        Session s = (Session) sessions.get(sessionId);
+        Session s = sessions.get(sessionId);
         if( s==null ) {
             if(log.isInfoEnabled())
                 log.info("Session not found " + sessionId);
@@ -1356,8 +1488,8 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
      * representation of their values, or null if no session with the
      * specified id exists, or if the session does not have any attributes
      */
-    public HashMap getSession(String sessionId) {
-        Session s = (Session) sessions.get(sessionId);
+    public HashMap<String,Object> getSession(String sessionId) {
+        Session s = sessions.get(sessionId);
         if (s == null) {
             if (log.isInfoEnabled()) {
                 log.info("Session not found " + sessionId);
@@ -1365,14 +1497,15 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
             return null;
         }
 
-        Enumeration ee = s.getSession().getAttributeNames();
+        @SuppressWarnings("unchecked")
+        Enumeration<String> ee = s.getSession().getAttributeNames();
         if (ee == null || !ee.hasMoreElements()) {
             return null;
         }
 
-        HashMap map = new HashMap();
+        HashMap<String,Object> map = new HashMap<String,Object>();
         while (ee.hasMoreElements()) {
-            String attrName = (String) ee.nextElement();
+            String attrName = ee.nextElement();
             map.put(attrName, getSessionAttribute(sessionId, attrName));
         }
 
@@ -1381,8 +1514,8 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
 
 
     public void expireSession( String sessionId ) {
-        Session s=(Session)sessions.get(sessionId);
-        if( s==null ) {
+        Session s = sessions.get(sessionId);
+        if (s == null) {
             if(log.isInfoEnabled())
                 log.info("Session not found " + sessionId);
             return;
@@ -1391,15 +1524,16 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
 
     public long getLastAccessedTimestamp( String sessionId ) {
-        Session s=(Session)sessions.get(sessionId);
-        if(s== null)
-            return -1 ;
+        Session s = sessions.get(sessionId);
+        if (s == null) {
+            return -1;
+        }
         return s.getLastAccessedTime();
     }
   
     public String getLastAccessedTime( String sessionId ) {
-        Session s=(Session)sessions.get(sessionId);
-        if( s==null ) {
+        Session s = sessions.get(sessionId);
+        if (s == null) {
             if(log.isInfoEnabled())
                 log.info("Session not found " + sessionId);
             return "";
@@ -1408,8 +1542,8 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
 
     public String getCreationTime( String sessionId ) {
-        Session s=(Session)sessions.get(sessionId);
-        if( s==null ) {
+        Session s = sessions.get(sessionId);
+        if (s == null) {
             if(log.isInfoEnabled())
                 log.info("Session not found " + sessionId);
             return "";
@@ -1418,9 +1552,10 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
     }
 
     public long getCreationTimestamp( String sessionId ) {
-        Session s=(Session)sessions.get(sessionId);
-        if(s== null)
-            return -1 ;
+        Session s = sessions.get(sessionId);
+        if (s == null) {
+            return -1;
+        }
         return s.getCreationTime();
     }
 
@@ -1466,15 +1601,16 @@ public abstract class ManagerBase implements Manager, MBeanRegistration {
         }
         
         /**
-         * Time stamp associated with this piece of timing information in
-         * milliseconds.
+         * @return Time stamp associated with this piece of timing information
+         *         in milliseconds.
          */
         public long getTimestamp() {
             return timestamp;
         }
         
         /**
-         * Duration associated with this piece of timing information in seconds.
+         * @return Duration associated with this piece of timing information in
+         *         seconds.
          */
         public int getDuration() {
             return duration;
