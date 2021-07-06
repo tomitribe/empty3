@@ -53,6 +53,29 @@
       <fix>
         Encode the output of the SSI <code>printenv</code> command. (markt)
       </fix>
+      <scode>
+        Use constants for SSI encoding values. (markt)
+      </scode>
+      <add>
+        When the CGI Servlet is configured with
+        <code>enableCmdLineArguments</code> set to true, limit the encoded form
+        of the individual command line arguments to those values allowed by RFC
+        3875. This restriction may be relaxed by the use of the new
+        initialisation parameter <code>cmdLineArgumentsEncoded</code>. (markt)
+      </add>
+      <add>
+        When the CGI Servlet is configured with
+        <code>enableCmdLineArguments</code> set to true, limit the decoded form
+        of the individual command line arguments to known safe values when
+        running on Windows. This restriction may be relaxed by the use of the
+        new initialisation parameter <code>cmdLineArgumentsDecoded</code>. This
+        is the fix for CVE-2019-0232. (markt)
+      </add>
+      <update>
+        Change the default for the <code>enableCmdLineArguments</code> parameter
+        of the CGI servlet from <code>true</code> to <code>false</code> as
+        additional hardening against CVE-2019-0232. (markt)
+      </update>
     </changelog>
   </subsection>
 </section>
