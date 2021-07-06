@@ -95,6 +95,11 @@
         with Tomcat. When a <code>SecurityManager</code> is used filtering will
         be enabled by default. (markt)
       </add>
+      <add>
+        When adding and removing <code>ResourceLink</code>s dynamically, ensure
+        that the global resource is only visible via the
+        <code>ResourceLinkFactory</code> when it is meant to be. (markt)
+      </add>
     </changelog>
   </subsection>
   <subsection name="Coyote">
