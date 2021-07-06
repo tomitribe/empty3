@@ -25,10 +25,11 @@ import java.io.EOFException;
 import org.apache.tomcat.util.buf.ByteChunk;
 import org.apache.tomcat.util.buf.MessageBytes;
 import org.apache.tomcat.util.http.MimeHeaders;
-import org.apache.tomcat.util.res.StringManager;
-
+import org.apache.tomcat.util.http.parser.HttpParser;
 import org.apache.coyote.InputBuffer;
 import org.apache.coyote.Request;
+import org.apache.juli.logging.Log;
+import org.apache.juli.logging.LogFactory;
 
 /**
  * Implementation of InputBuffer which provides HTTP request header parsing as
@@ -36,9 +37,10 @@ import org.apache.coyote.Request;
  *
  * @author <a href="mailto:remm@apache.org">Remy Maucherat</a>
  */
-public class InternalInputBuffer implements InputBuffer {
+public class InternalInputBuffer extends AbstractInputBuffer {
 
-
+    private static final Log log = LogFactory.getLog(InternalInputBuffer.class);
+    
     // -------------------------------------------------------------- Constants
 
 
@@ -75,18 +77,7 @@ public class InternalInputBuffer implements InputBuffer {
     }
 
 
-    // -------------------------------------------------------------- Variables
-
-
-    /**
-     * The string manager for this package.
-     */
-    protected static StringManager sm =
-        StringManager.getManager(Constants.Package);
-
-
     // ----------------------------------------------------- Instance Variables
-
 
     /**
      * Associated Coyote request.
@@ -200,7 +191,7 @@ public class InternalInputBuffer implements InputBuffer {
 
         // FIXME: Check for null ?
 
-        InputFilter[] newFilterLibrary = 
+        InputFilter[] newFilterLibrary =
             new InputFilter[filterLibrary.length + 1];
         for (int i = 0; i < filterLibrary.length; i++) {
             newFilterLibrary[i] = filterLibrary[i];
@@ -268,7 +259,7 @@ public class InternalInputBuffer implements InputBuffer {
 
 
     /**
-     * Recycle the input buffer. This should be called when closing the 
+     * Recycle the input buffer. This should be called when closing the
      * connection.
      */
     public void recycle() {
@@ -293,7 +284,7 @@ public class InternalInputBuffer implements InputBuffer {
 
     /**
      * End processing of current HTTP request.
-     * Note: All bytes of the current request should have been already 
+     * Note: All bytes of the current request should have been already
      * consumed. This method only resets all the pointers so that we are ready
      * to parse the next HTTP request.
      */
@@ -324,7 +315,7 @@ public class InternalInputBuffer implements InputBuffer {
 
     /**
      * End request (consumes leftover bytes).
-     * 
+     *
      * @throws IOException an undelying I/O error occured
      */
     public void endRequest()
@@ -339,8 +330,8 @@ public class InternalInputBuffer implements InputBuffer {
 
 
     /**
-     * Read the request line. This function is meant to be used during the 
-     * HTTP request header parsing. Do NOT attempt to read the request body 
+     * Read the request line. This function is meant to be used during the
+     * HTTP request header parsing. Do NOT attempt to read the request body
      * using it.
      *
      * @throws IOException If an exception occurs during the underlying socket
@@ -398,6 +389,8 @@ public class InternalInputBuffer implements InputBuffer {
             if (buf[pos] == Constants.SP || buf[pos] == Constants.HT) {
                 space = true;
                 request.method().setBytes(buf, start, pos - start);
+            } else if (!HttpParser.isToken(buf[pos])) {
+                throw new IllegalArgumentException(sm.getString("iib.invalidmethod"));
             }
 
             pos++;
@@ -442,15 +435,17 @@ public class InternalInputBuffer implements InputBuffer {
             if (buf[pos] == Constants.SP || buf[pos] == Constants.HT) {
                 space = true;
                 end = pos;
-            } else if ((buf[pos] == Constants.CR) 
+            } else if ((buf[pos] == Constants.CR)
                        || (buf[pos] == Constants.LF)) {
                 // HTTP/0.9 style request
                 eol = true;
                 space = true;
                 end = pos;
-            } else if ((buf[pos] == Constants.QUESTION) 
+            } else if ((buf[pos] == Constants.QUESTION)
                        && (questionPos == -1)) {
                 questionPos = pos;
+            } else if (HttpParser.isNotRequestTarget(buf[pos])) {
+                throw new IllegalArgumentException(sm.getString("iib.invalidRequestTarget"));
             }
 
             pos++;
@@ -459,7 +454,7 @@ public class InternalInputBuffer implements InputBuffer {
 
         request.unparsedURI().setBytes(buf, start, end - start);
         if (questionPos >= 0) {
-            request.queryString().setBytes(buf, questionPos + 1, 
+            request.queryString().setBytes(buf, questionPos + 1,
                                            end - questionPos - 1);
             request.requestURI().setBytes(buf, start, questionPos - start);
         } else {
@@ -486,7 +481,7 @@ public class InternalInputBuffer implements InputBuffer {
 
         //
         // Reading the protocol
-        // Protocol is always US-ASCII
+        // Protocol is always "HTTP/" DIGIT "." DIGIT
         //
 
         while (!eol) {
@@ -503,6 +498,8 @@ public class InternalInputBuffer implements InputBuffer {
                 if (end == 0)
                     end = pos;
                 eol = true;
+            } else if (!HttpParser.isHttpProtocol(buf[pos])) {
+                throw new IllegalArgumentException(sm.getString("iib.invalidHttpProtocol"));
             }
 
             pos++;
@@ -535,7 +532,7 @@ public class InternalInputBuffer implements InputBuffer {
 
     /**
      * Parse an HTTP header.
-     * 
+     *
      * @return false after reading a blank line (which indicates that the
      * HTTP header parsing is done
      */
@@ -592,6 +589,10 @@ public class InternalInputBuffer implements InputBuffer {
             if (buf[pos] == Constants.COLON) {
                 colon = true;
                 headerValue = headers.addValue(buf, start, pos - start);
+            } else if (!HttpParser.isToken(buf[pos])) {
+                // If a non-token header is detected, skip the line and
+                // ignore the header
+                skipLine(start);
             }
             chr = buf[pos];
             if ((chr >= Constants.A) && (chr <= Constants.Z)) {
@@ -699,7 +700,7 @@ public class InternalInputBuffer implements InputBuffer {
     /**
      * Read some bytes.
      */
-    public int doRead(ByteChunk chunk, Request req) 
+    public int doRead(ByteChunk chunk, Request req)
         throws IOException {
 
         if (lastActiveFilter == -1)
@@ -712,7 +713,38 @@ public class InternalInputBuffer implements InputBuffer {
 
     // ------------------------------------------------------ Protected Methods
 
+    private void skipLine(int start) throws IOException {
+        boolean eol = false;
+        int lastRealByte = start;
+        if (pos - 1 > start) {
+            lastRealByte = pos - 1;
+        }
+        
+        while (!eol) {
 
+            // Read new bytes if needed
+            if (pos >= lastValid) {
+                if (!fill())
+                    throw new EOFException(sm.getString("iib.eof.error"));
+            }
+
+            if (buf[pos] == Constants.CR) {
+                // Skip
+            } else if (buf[pos] == Constants.LF) {
+                eol = true;
+            } else {
+                lastRealByte = pos;
+            }
+            pos++;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug(sm.getString("iib.invalidheader", new String(buf, start,
+                    lastRealByte - start + 1, "ISO-8859-1")));
+        }
+    }
+
+    
     /**
      * Fill the internal buffer using data from the undelying input stream.
      * 
@@ -738,7 +770,7 @@ public class InternalInputBuffer implements InputBuffer {
         } else {
 
             if (buf.length - end < 4500) {
-                // In this case, the request header was really large, so we allocate a 
+                // In this case, the request header was really large, so we allocate a
                 // brand new one; the old one will get GCed when subsequent requests
                 // clear all references
                 buf = new byte[buf.length];
@@ -765,14 +797,14 @@ public class InternalInputBuffer implements InputBuffer {
      * This class is an input buffer which will read its data from an input
      * stream.
      */
-    protected class InputStreamInputBuffer 
+    protected class InputStreamInputBuffer
         implements InputBuffer {
 
 
         /**
          * Read bytes into the specified chunk.
          */
-        public int doRead(ByteChunk chunk, Request req ) 
+        public int doRead(ByteChunk chunk, Request req )
             throws IOException {
 
             if (pos >= lastValid) {
