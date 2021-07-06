@@ -104,6 +104,10 @@
         Make timing attacks against the Realm implementations harder.
         (schultz/markt)
       </fix>
+      <fix>
+        When configuring the JMX remote listener, specify the allowed types for
+        the credentials. (markt)
+      </fix>
     </changelog>
   </subsection>
   <subsection name="Coyote">

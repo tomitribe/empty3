@@ -198,6 +198,10 @@ public class JmxRemoteLifecycleListener implements LifecycleListener {
                 csf = new RmiClientLocalhostSocketFactory(csf);
             }
 
+            env.put("jmx.remote.rmi.server.credential.types", new String[] {
+                    String[].class.getName(),
+                    String.class.getName() });
+
             // Populate the env properties used to create the server
             if (csf != null) {
                 env.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE,
