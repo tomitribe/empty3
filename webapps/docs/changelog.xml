@@ -163,6 +163,10 @@
         Add the <code>StatusManagerServlet</code> to the list of Servlets that
         can only be loaded by privileged applications. (markt)
       </fix>
+      <fix>
+        <bug>60409</bug>: When unable to complete sendfile request, ensure the
+        Processor will be added to the cache only once. (markt/violetagg)
+      </fix>
     </changelog>
   </subsection>
   <subsection name="Jasper">
