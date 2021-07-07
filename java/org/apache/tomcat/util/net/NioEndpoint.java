@@ -2429,7 +2429,7 @@ public class NioEndpoint extends AbstractEndpoint {
         public long pos;
         public long length;
         // KeepAlive flag
-        public boolean keepAlive;
+        public SendfileKeepAliveState keepAliveState = SendfileKeepAliveState.NONE;
     }
 
 }
