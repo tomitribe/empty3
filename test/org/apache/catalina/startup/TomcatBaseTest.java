@@ -40,6 +40,7 @@ import javax.servlet.http.HttpSession;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
+import org.apache.catalina.connector.Connector;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -50,7 +51,6 @@ import org.apache.catalina.Manager;
 import org.apache.catalina.Server;
 import org.apache.catalina.ServerFactory;
 import org.apache.catalina.Service;
-import org.apache.catalina.connector.Connector;
 import org.apache.catalina.core.AprLifecycleListener;
 import org.apache.catalina.core.StandardServer;
 import org.apache.catalina.session.ManagerBase;
@@ -83,7 +83,7 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
      * Sub-classes need to know port so they can connect
      */
     public int getPort() {
-        return tomcat.getConnector().getLocalPort();
+        return tomcat.getLocalPort();
     }
 
     /**
@@ -166,6 +166,7 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
         // Use BIO by default
         if (protocol == null) {
             protocol = "org.apache.coyote.http11.Http11Protocol";
+            // protocol = "org.apache.coyote.http11.Http11NioProtocol";
         }
 
         return protocol;

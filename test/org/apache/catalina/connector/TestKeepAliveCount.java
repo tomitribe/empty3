@@ -62,7 +62,7 @@ public class TestKeepAliveCount extends TomcatBaseTest {
             Tomcat tomcat = getTomcatInstance();
             init();
             tomcat.start();
-            setPort(tomcat.getConnector().getLocalPort());
+            setPort(tomcat.getLocalPort());
 
             // Open connection
             connect();
@@ -85,7 +85,7 @@ public class TestKeepAliveCount extends TomcatBaseTest {
             Tomcat tomcat = getTomcatInstance();
             init();
             tomcat.start();
-            setPort(tomcat.getConnector().getLocalPort());
+            setPort(tomcat.getLocalPort());
 
             // Open connection
             connect();

@@ -28,6 +28,7 @@ import org.apache.catalina.Realm;
 import org.apache.catalina.Wrapper;
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
+import org.apache.catalina.core.ContainerBase;
 import org.apache.catalina.deploy.ApplicationParameter;
 import org.apache.catalina.deploy.ErrorPage;
 import org.apache.catalina.deploy.FilterDef;
@@ -51,7 +52,7 @@ import java.util.List;
 /**
  * Minimal implementation for use in unit tests.
  */
-public class TesterContext implements Context {
+public class TesterContext extends ContainerBase implements Context {
 
     private static final Log log = LogFactory.getLog(TesterContext.class);
 
@@ -932,9 +933,8 @@ public class TesterContext implements Context {
     @Override
     public boolean getMapperDirectoryRedirectEnabled() { return false; }
 
-    @Override
     public void setDispatchersUseEncodedPaths(boolean dispatchersUseEncodedPaths) { /* NO-OP */ }
-    @Override
+
     public boolean getDispatchersUseEncodedPaths() { return true; }
 
 }

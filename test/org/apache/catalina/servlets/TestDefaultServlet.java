@@ -174,7 +174,7 @@ public class TestDefaultServlet extends TomcatBaseTest {
         tomcat.start();
 
         TestCustomErrorClient client =
-                new TestCustomErrorClient(tomcat.getConnector().getLocalPort());
+                new TestCustomErrorClient(tomcat.getLocalPort());
 
         client.reset();
         client.setRequest(new String[] {
@@ -252,7 +252,7 @@ public class TestDefaultServlet extends TomcatBaseTest {
         tomcat.start();
 
         TestCustomErrorClient client =
-                new TestCustomErrorClient(tomcat.getConnector().getLocalPort());
+                new TestCustomErrorClient(tomcat.getLocalPort());
 
         client.reset();
         client.setRequest(new String[] {

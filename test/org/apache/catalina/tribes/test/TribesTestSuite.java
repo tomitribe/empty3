@@ -16,26 +16,28 @@
  */
 package org.apache.catalina.tribes.test;
 
-import junit.framework.Test;
-import junit.framework.TestCase;
-import junit.framework.TestSuite;
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
+import org.junit.runners.Suite.SuiteClasses;
 
-public class TribesTestSuite
-    extends TestCase {
+import org.apache.catalina.tribes.group.TestGroupChannelMemberArrival;
+import org.apache.catalina.tribes.group.TestGroupChannelOptionFlag;
+import org.apache.catalina.tribes.group.TestGroupChannelStartStop;
+import org.apache.catalina.tribes.group.interceptors.TestOrderInterceptor;
+import org.apache.catalina.tribes.group.interceptors.TestTcpFailureDetector;
+import org.apache.catalina.tribes.membership.TestMemberImplSerialization;
+import org.apache.catalina.tribes.test.channel.TestDataIntegrity;
 
-    public TribesTestSuite(String s) {
-        super(s);
-    }
+@RunWith(Suite.class)
+@SuiteClasses({
+        TestGroupChannelStartStop.class,
+        TestGroupChannelOptionFlag.class,
+        TestMemberImplSerialization.class,
+        TestGroupChannelMemberArrival.class,
+        TestTcpFailureDetector.class,
+        TestDataIntegrity.class,
+        TestOrderInterceptor.class
+})
+public class TribesTestSuite {
 
-    public static Test suite() {
-        TestSuite suite = new TestSuite();
-        suite.addTestSuite(org.apache.catalina.tribes.test.channel.ChannelStartStop.class);
-        suite.addTestSuite(org.apache.catalina.tribes.test.channel.TestChannelOptionFlag.class);
-        suite.addTestSuite(org.apache.catalina.tribes.test.membership.MemberSerialization.class);
-        suite.addTestSuite(org.apache.catalina.tribes.test.membership.TestMemberArrival.class);
-        suite.addTestSuite(org.apache.catalina.tribes.test.membership.TestTcpFailureDetector.class);
-        suite.addTestSuite(org.apache.catalina.tribes.test.channel.TestDataIntegrity.class);
-        suite.addTestSuite(org.apache.catalina.tribes.test.interceptors.TestOrderInterceptor.class);
-        return suite;
-    }
 }

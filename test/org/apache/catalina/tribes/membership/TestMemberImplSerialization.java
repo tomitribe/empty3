@@ -13,11 +13,15 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  */
-package org.apache.catalina.tribes.test.membership;
+package org.apache.catalina.tribes.membership;
 
-import junit.framework.TestCase;
-import org.apache.catalina.tribes.membership.MemberImpl;
 import java.util.Arrays;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * <p>Title: </p>
@@ -29,11 +33,12 @@ import java.util.Arrays;
  * @author not attributable
  * @version 1.0
  */
-public class MemberSerialization extends TestCase {
-    MemberImpl m1, m2, p1,p2;
-    byte[] payload = null;
-    protected void setUp() throws Exception {
-        super.setUp();
+public class TestMemberImplSerialization {
+    private MemberImpl m1, m2, p1,p2;
+    private byte[] payload = null;
+
+    @Before
+    public void setUp() throws Exception {
         payload = new byte[333];
         Arrays.fill(payload,(byte)1);
         m1 = new MemberImpl("localhost",3333,1,payload);
@@ -47,7 +52,8 @@ public class MemberSerialization extends TestCase {
         m1.setCommand(new byte[] {1,2,4,5,6,7,8,9});
         m2.setCommand(new byte[] {1,2,4,5,6,7,8,9});
     }
-    
+
+    @Test
     public void testCompare() throws Exception {
         assertTrue(m1.equals(m2));
         assertTrue(m2.equals(m1));
@@ -57,7 +63,8 @@ public class MemberSerialization extends TestCase {
         assertFalse(m2.equals(p2));
         assertFalse(p1.equals(p2));
     }
-    
+
+    @Test
     public void testSerializationOne() throws Exception {
         MemberImpl m = m1;
         byte[] md1 = m.getData(false,true);
@@ -90,10 +97,6 @@ public class MemberSerialization extends TestCase {
         result = result && Arrays.equals(impl1.getUniqueId(),impl2.getUniqueId());
         result = result && impl1.getPort() == impl2.getPort();
         return result;
-    }
-
-    protected void tearDown() throws Exception {
-        super.tearDown();
     }
 
 }
