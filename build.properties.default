@@ -206,3 +206,9 @@ hamcrest.version=1.3
 hamcrest.home=${base.path}/hamcrest-${hamcrest.version}
 hamcrest.jar=${hamcrest.home}/hamcrest-core-${hamcrest.version}.jar
 hamcrest.loc=${base-maven.loc}/org/hamcrest/hamcrest-core/${hamcrest.version}/hamcrest-core-${hamcrest.version}.jar
+
+# ----- EasyMock, version 3.2 or later -----
+easymock.version=3.2
+easymock.home=${base.path}/easymock-${easymock.version}
+easymock.jar=${easymock.home}/easymock-${easymock.version}.jar
+easymock.loc=${base-maven.loc}/org/easymock/easymock/${easymock.version}/easymock-${easymock.version}.jar

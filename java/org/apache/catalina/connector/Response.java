@@ -1573,7 +1573,7 @@ public class Response
      * @exception IllegalArgumentException if a MalformedURLException is
      *  thrown when converting the relative URL to an absolute one
      */
-    private String toAbsolute(String location) {
+    String toAbsolute(String location) {
 
         if (location == null)
             return (location);
