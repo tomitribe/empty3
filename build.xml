@@ -146,6 +146,21 @@
     <filter token="JDT_VERSION" value="${jdt.version}"/>
   </filterset>
 
+  <target name="check-java7">
+    <!--
+      Verify availability of Java 7 JDK if one was configured.
+      Fail if java.7.home was set, but points to a non-existing path.
+    -->
+    <fail message="Invalid java.7.home setting: [${java.7.home}]. The path $${java.7.home}/bin/ does not exist.">
+      <condition>
+        <and>
+          <isset property="java.7.home" />
+          <not><available file="${java.7.home}/bin/" type="dir" /></not>
+        </and>
+      </condition>
+    </fail>
+  </target>
+
   <!-- Just build Tomcat -->
   <target name="build-prepare">
 
@@ -712,7 +727,7 @@
 
   <!-- ========================= Testing ========================== -->
 
-  <target name="test-compile" depends="compile" >
+  <target name="test-compile" depends="compile,compile-webapp-examples" >
     <mkdir dir="${test.classes}"/>
     <!-- Compile -->
     <javac srcdir="test" destdir="${test.classes}"
@@ -725,6 +740,10 @@
       <classpath refid="tomcat.test.classpath" />
       <include name="org/apache/**" />
       <include name="javax/**" />
+      <include name="util/**" />
+      <exclude name="org/apache/catalina/util/TesterBase64Performance.java" if="java11.present" />
+      <exclude unless="java.7.home" name="org/apache/catalina/websocket/**" />
+      <exclude unless="java.7.home" name="org/apache/tomcat/websocket/**" />
     </javac>
     <!-- Copy static resource files the tests need to load via the class     -->
     <!-- loader.                                                             -->
@@ -810,7 +829,7 @@
     <available file="${test.apr.loc}" property="apr.exists" />
   </target>
 
-  <target name="test-init" >
+  <target name="test-init" depends="check-java7">
     <condition property="java.bin.path" value="${java.7.home}/bin/">
       <isset property="java.7.home" />
     </condition>
@@ -873,8 +892,15 @@
             <exclude name="**/Tester*.java" />
             <!-- Exclude the tests known to fail -->
             <exclude name="org/apache/catalina/tribes/test/**" />
+            <!-- Exclude both sets of WebSocket tests unless Java 7 is       -->
+            <!-- present as the WebSocket examples (used by the tests) won't -->
+            <!-- build without it.                                           -->
+            <exclude unless="java.7.home" name="org/apache/catalina/websocket/**" />
+            <exclude unless="java.7.home" name="org/apache/tomcat/websocket/**" />
             <!-- Exclude performance tests. E.g. on systems with slow/inconsistent timing -->
             <exclude name="**/*Performance.java" if="${test.excludePerformance}" />
+            <!-- Exclude a configurable list of tests -->
+            <exclude name="${test.exclude}" />
           </fileset>
         </batchtest>
       </junit>
@@ -1073,6 +1099,49 @@
       <param name="destfile" value="${hamcrest.jar}"/>
       <param name="destdir" value="${hamcrest.home}"/>
     </antcall>
+
+    <antcall target="downloadfile">
+      <param name="sourcefile" value="${easymock.loc}"/>
+      <param name="destfile" value="${easymock.jar}"/>
+      <param name="destdir" value="${easymock.home}"/>
+    </antcall>
+
+  </target>
+
+  <target name="compile-webapp-examples" >
+
+    <!-- Build classes for examples webapp -->
+    <mkdir dir="${tomcat.build}/webapps/examples/WEB-INF/classes"/>
+    <javac   srcdir="webapps/examples/WEB-INF/classes"
+             destdir="${tomcat.build}/webapps/examples/WEB-INF/classes"
+             debug="${compile.debug}" deprecation="${compile.deprecation}"
+             source="${compile.source}"
+             target="${compile.target}"
+             release="${compile.release}"
+             classpath="${tomcat.classes}"
+             encoding="ISO-8859-1"
+             includeantruntime="false">
+    </javac>
+
+    <mkdir dir="${tomcat.build}/webapps/examples/jsp/plugin/applet"/>
+    <javac   srcdir="webapps/examples/jsp/plugin/applet"
+             destdir="${tomcat.build}/webapps/examples/jsp/plugin/applet"
+             debug="${compile.debug}" deprecation="${compile.deprecation}"
+             source="${compile.source}"
+             target="${compile.target}"
+             release="${compile.release}"
+             classpath="${tomcat.classes}"
+             encoding="ISO-8859-1"
+             includeantruntime="false">
+    </javac>
+
+    <!-- Convert the message files of the examples webapp from UTF-8 to ASCII.
+    This can be removed after upgrading to Java 9+ as the minimum JRE and
+    specifying the encoding when loading the ResourceBundles -->
+    <native2ascii src="webapps/examples/WEB-INF/classes"
+                  dest="${tomcat.build}/webapps/examples/WEB-INF/classes"
+                  includes="**/LocalStrings*.properties"
+                  encoding="UTF-8"/>
 
   </target>
 
