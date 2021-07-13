@@ -58,6 +58,10 @@
   <property name="tomcat.classes"        value="${tomcat.output}/classes"/>
   <property name="tomcat.dist"           value="${tomcat.output}/dist"/>
   <property name="tomcat.manifests"      value="${tomcat.output}/manifests"/>
+  <property name="test.classes"          value="${tomcat.output}/testclasses"/>
+  <property name="test.temp"             value="${tomcat.output}/test-tmp"/>
+  <property name="test.reports"          value="${tomcat.build}/logs"/>
+  <property name="test.apr.loc"          value="${tomcat.build}/bin/native"/>
 
   <!-- Can't be lower - jsp uses templates -->
   <property name="compile.source" value="1.5"/>
@@ -175,7 +179,15 @@
 
   </target>
 
-  <target name="compile">
+  <target name="compile-prepare">
+    <!-- Add the builtin catalina.properties -->
+    <copy todir="java/org/apache/catalina/startup"
+          file="conf/catalina.properties" encoding="ISO-8859-1">
+      <filterset refid="version.filters"/>
+    </copy>
+  </target>
+
+  <target name="compile" depends="build-prepare,compile-prepare">
 
     <!-- Compile internal server components -->
     <javac srcdir="java" destdir="${tomcat.classes}"
@@ -212,7 +224,7 @@
 
   </target>
 
-  <target name="build-only" depends="build-prepare,compile,package" />
+  <target name="build-only" depends="compile,package" />
 
   <!-- Pattern sets for jar files -->
   <patternset id="files.annotations-api">
@@ -708,6 +720,9 @@
     <delete dir="${tomcat.classes}" />
     <delete dir="${tomcat.build}" />
     <delete dir="${tomcat.manifests}" />
+    <delete dir="${test.classes}" />
+    <delete dir="${test.temp}" />
+    <delete file="java/org/apache/catalina/startup/catalina.properties" />
   </target>
 
   <!-- ========================= Testing ========================== -->
@@ -1066,6 +1081,19 @@
       <param name="sourcefile" value="${nsis.loc}"/>
       <param name="destfile" value="${nsis.exe}"/>
       <param name="destdir" value="${nsis.home}/.."/>
+    </antcall>
+
+    <!-- Libraries used for testing. JUnit, Hamcrest -->
+    <antcall target="downloadfile">
+      <param name="sourcefile" value="${junit.loc}"/>
+      <param name="destfile" value="${junit.jar}"/>
+      <param name="destdir" value="${junit.home}"/>
+    </antcall>
+
+    <antcall target="downloadfile">
+      <param name="sourcefile" value="${hamcrest.loc}"/>
+      <param name="destfile" value="${hamcrest.jar}"/>
+      <param name="destdir" value="${hamcrest.home}"/>
     </antcall>
 
     <antcall target="downloadfile">

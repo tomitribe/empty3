@@ -94,7 +94,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
             (endUsesCRLF ? SimpleHttpClient.CRLF : LF) };
 
         TrailerClient client =
-                new TrailerClient(tomcat.getConnector().getLocalPort());
+                new TrailerClient(tomcat.getLocalPort());
         client.setRequest(request);
 
         client.connect();
@@ -174,7 +174,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
             SimpleHttpClient.CRLF };
 
         TrailerClient client =
-                new TrailerClient(tomcat.getConnector().getLocalPort());
+                new TrailerClient(tomcat.getLocalPort());
         client.setRequest(request);
 
         client.connect();
@@ -216,7 +216,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
             SimpleHttpClient.CRLF;
 
         TrailerClient client =
-                new TrailerClient(tomcat.getConnector().getLocalPort());
+                new TrailerClient(tomcat.getLocalPort());
         client.setRequest(new String[] {request});
 
         client.connect();
@@ -310,7 +310,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
         request += SimpleHttpClient.CRLF + chunks + "0" + SimpleHttpClient.CRLF
                 + SimpleHttpClient.CRLF;
 
-        TrailerClient client = new TrailerClient(tomcat.getConnector().getLocalPort());
+        TrailerClient client = new TrailerClient(tomcat.getLocalPort());
         // Need to use the content length here as variations in Connector and
         // JVM+OS behaviour mean that in some circumstances the client may see
         // an IOException rather than the response body when the server closes

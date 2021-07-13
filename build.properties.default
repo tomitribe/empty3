@@ -53,6 +53,8 @@ test.threads=1
 # Note the Cobertura code coverage tool is GPLv2 licensed
 test.cobertura=false
 
+# Some platforms (e.g. OSX El Capitan) require IPv4 to be the default for the
+# multicast tests to work
 java.net.preferIPv4Stack=true
 
 # Location of Java7 JDK
@@ -67,9 +69,7 @@ trydownload.httpusecaches=true
 # Please note this path must be absolute, not relative,
 # as it is referenced with different working directory
 # contexts by the various build scripts.
-base.path=/usr/share/java
-#base.path=C:/path/to/the/repository
-#base.path=/usr/local
+base.path=${user.home}/tomcat-build-libs
 
 compile.source=1.5
 compile.target=1.5

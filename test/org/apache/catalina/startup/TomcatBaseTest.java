@@ -83,7 +83,7 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
      * Sub-classes need to know port so they can connect
      */
     public int getPort() {
-        return tomcat.getConnector().getLocalPort();
+        return tomcat.getLocalPort();
     }
 
     /**
@@ -109,7 +109,7 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
         // A sanity check that the Server reference has been cleared after
         // the previous test run
         assertNull("A Server has already been created.",
-                ServerFactory.getServer(false));
+                ServerFactory.getServer());
 
         tomcat = new TomcatWithFastSessionIDs();
 
@@ -180,7 +180,6 @@ public abstract class TomcatBaseTest extends LoggingBaseTest {
                 tomcat.destroy();
             }
         } finally {
-            ServerFactory.clear();
             super.tearDown();
         }
     }
