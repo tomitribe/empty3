@@ -63,6 +63,10 @@ import org.apache.tomcat.util.buf.ByteChunk;
  * don't have to keep writing the cleanup code.
  */
 public abstract class TomcatBaseTest extends LoggingBaseTest {
+
+    // Used by parameterized tests. Defined here to reduce duplication.
+    protected static final Boolean[] booleans = new Boolean[] { Boolean.FALSE, Boolean.TRUE };
+
     private Tomcat tomcat;
     private boolean accessLogEnabled = false;
 

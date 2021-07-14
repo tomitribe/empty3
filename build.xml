@@ -100,16 +100,34 @@
   <property name="test.formatter" value="-Dorg.apache.juli.formatter=java.util.logging.SimpleFormatter"/>
 
   <!-- Classpath -->
+  <path id="compile.classpath">
+    <pathelement location="${jdt.jar}"/>
+    <pathelement location="${saaj-api.jar}"/>
+  </path>
+
   <path id="tomcat.classpath">
+    <pathelement location="${tomcat.classes}"/>
     <pathelement location="${ant.jar}"/>
     <pathelement location="${jdt.jar}"/>
   </path>
   <path id="tomcat.test.classpath">
-    <pathelement location="${tomcat.classes}"/>
+    <pathelement location="${tomcat.build}/webapps/examples/WEB-INF/classes"/>
     <pathelement location="${test.classes}"/>
     <pathelement location="${junit.jar}"/>
     <pathelement location="${hamcrest.jar}"/>
+    <pathelement location="${easymock.jar}"/>
+    <pathelement location="${cglib.jar}"/>
+    <pathelement location="${objenesis.jar}"/>
+    <path refid="compile.classpath" />
     <path refid="tomcat.classpath" />
+  </path>
+
+  <path id="tomcat.webservices.classpath">
+    <path refid="tomcat.classpath" />
+    <fileset dir="${tomcat.extras}/webservices">
+      <include name="jaxrpc.jar"/>
+      <include name="wsdl4j.jar"/>
+    </fileset>
   </path>
 
   <!-- Version info filter set -->
@@ -127,6 +145,21 @@
     <filter token="VERSION_BUILT" value="${TODAY} ${TSTAMP} UTC"/>
     <filter token="JDT_VERSION" value="${jdt.version}"/>
   </filterset>
+
+  <target name="check-java7">
+    <!--
+      Verify availability of Java 7 JDK if one was configured.
+      Fail if java.7.home was set, but points to a non-existing path.
+    -->
+    <fail message="Invalid java.7.home setting: [${java.7.home}]. The path $${java.7.home}/bin/ does not exist.">
+      <condition>
+        <and>
+          <isset property="java.7.home" />
+          <not><available file="${java.7.home}/bin/" type="dir" /></not>
+        </and>
+      </condition>
+    </fail>
+  </target>
 
   <!-- Just build Tomcat -->
   <target name="build-prepare">
@@ -694,7 +727,7 @@
 
   <!-- ========================= Testing ========================== -->
 
-  <target name="test-compile" depends="compile" >
+  <target name="test-compile" depends="compile,compile-webapp-examples" >
     <mkdir dir="${test.classes}"/>
     <!-- Compile -->
     <javac srcdir="test" destdir="${test.classes}"
@@ -707,11 +740,21 @@
       <classpath refid="tomcat.test.classpath" />
       <include name="org/apache/**" />
       <include name="javax/**" />
+      <include name="util/**" />
+      <exclude name="org/apache/catalina/util/TesterBase64Performance.java" if="java11.present" />
+      <exclude unless="java.7.home" name="org/apache/catalina/websocket/**" />
+      <exclude unless="java.7.home" name="org/apache/tomcat/websocket/**" />
     </javac>
-    <copy todir="${test.classes}">
-        <fileset dir="test">
-          <include name="META-INF/**"/>
-        </fileset>
+    <!-- Copy static resource files the tests need to load via the class     -->
+    <!-- loader.                                                             -->
+    <copy todir="${test.classes}" encoding="ISO-8859-1">
+      <filterset refid="version.filters"/>
+      <fileset dir="test">
+        <include name="**/*.jks"/>
+        <include name="**/*.pem"/>
+        <include name="**/service-config.txt"/>
+        <include name="**/logging-non-rotatable.properties"/>
+      </fileset>
     </copy>
   </target>
 
@@ -725,7 +768,10 @@
   <property name="test.jvmarg.egd" value="" />
 
   <target name="test" description="Runs the JUnit test cases"
-          depends="test-bio,test-nio,test-apr" >
+          depends="test-bio,test-nio,test-apr,test-status" />
+
+  <target name="test-status"
+          description="Analyses logs directory and reports on skipped tests, test failures and test errors">
     <fileset id="test.result.skippedtests" dir="${test.reports}" includes="*.txt">
       <not>
         <contains text="Skipped: 0" />
@@ -760,19 +806,19 @@
   </target>
 
   <target name="test-bio" description="Runs the JUnit test cases for BIO. Does not stop on errors."
-          depends="test-compile,deploy" if="${execute.test.bio}">
+          depends="test-init,test-compile,deploy" if="${execute.test.bio}">
     <runtests protocol="org.apache.coyote.http11.Http11Protocol"
               extension=".BIO" />
   </target>
 
   <target name="test-nio" description="Runs the JUnit test cases for NIO. Does not stop on errors."
-          depends="test-compile,deploy" if="${execute.test.nio}">
+          depends="test-init,test-compile,deploy" if="${execute.test.nio}">
     <runtests protocol="org.apache.coyote.http11.Http11NioProtocol"
               extension=".NIO" />
   </target>
 
   <target name="test-apr" description="Runs the JUnit test cases for APR. Does not stop on errors."
-          depends="test-compile,deploy,test-apr-exists"
+          depends="test-init,test-compile,deploy,test-apr-exists"
           if="${apr.exists}">
     <runtests protocol="org.apache.coyote.http11.Http11AprProtocol"
               extension=".APR" />
@@ -781,6 +827,17 @@
   <target name="test-apr-exists" description="Checks for APR lib"
           if="${execute.test.apr}">
     <available file="${test.apr.loc}" property="apr.exists" />
+  </target>
+
+  <target name="test-init" depends="check-java7">
+    <condition property="java.bin.path" value="${java.7.home}/bin/">
+      <isset property="java.7.home" />
+    </condition>
+    <condition property="java.bin.path" value="${java.home}/bin/">
+      <isset property="java.home" />
+    </condition>
+    <property name="java.bin.path" value="" />
+    <echo message="Using Java: [${java.bin.path}java]" />
   </target>
 
   <macrodef name="runtests"
@@ -793,15 +850,18 @@
 
     <sequential>
       <mkdir dir="${test.reports}" />
-      <junit printsummary="yes" fork="yes" dir="." showoutput="yes"
+      <junit printsummary="yes" fork="yes" dir="." showoutput="${test.verbose}"
         errorproperty="test.result.error"
         failureproperty="test.result.failure"
-        haltonfailure="${test.haltonfailure}">
+        haltonfailure="${test.haltonfailure}"
+        jvm="${java.bin.path}java"
+        threads="${test.threads}">
 
         <jvmarg value="${test.jvmarg.egd}"/>
         <jvmarg value="-Djava.library.path=${test.apr.loc}"/>
         <jvmarg value="${test.formatter}"/>
         <jvmarg value="-Djava.net.preferIPv4Stack=${java.net.preferIPv4Stack}"/>
+        <jvmarg value="-Dapple.awt.UIElement=true"/>
 
         <classpath refid="tomcat.test.classpath" />
 
@@ -832,8 +892,15 @@
             <exclude name="**/Tester*.java" />
             <!-- Exclude the tests known to fail -->
             <exclude name="org/apache/catalina/tribes/test/**" />
+            <!-- Exclude both sets of WebSocket tests unless Java 7 is       -->
+            <!-- present as the WebSocket examples (used by the tests) won't -->
+            <!-- build without it.                                           -->
+            <exclude unless="java.7.home" name="org/apache/catalina/websocket/**" />
+            <exclude unless="java.7.home" name="org/apache/tomcat/websocket/**" />
             <!-- Exclude performance tests. E.g. on systems with slow/inconsistent timing -->
             <exclude name="**/*Performance.java" if="${test.excludePerformance}" />
+            <!-- Exclude a configurable list of tests -->
+            <exclude name="${test.exclude}" />
           </fileset>
         </batchtest>
       </junit>
@@ -1032,6 +1099,49 @@
       <param name="destfile" value="${hamcrest.jar}"/>
       <param name="destdir" value="${hamcrest.home}"/>
     </antcall>
+
+    <antcall target="downloadfile">
+      <param name="sourcefile" value="${easymock.loc}"/>
+      <param name="destfile" value="${easymock.jar}"/>
+      <param name="destdir" value="${easymock.home}"/>
+    </antcall>
+
+  </target>
+
+  <target name="compile-webapp-examples" >
+
+    <!-- Build classes for examples webapp -->
+    <mkdir dir="${tomcat.build}/webapps/examples/WEB-INF/classes"/>
+    <javac   srcdir="webapps/examples/WEB-INF/classes"
+             destdir="${tomcat.build}/webapps/examples/WEB-INF/classes"
+             debug="${compile.debug}" deprecation="${compile.deprecation}"
+             source="${compile.source}"
+             target="${compile.target}"
+             release="${compile.release}"
+             classpath="${tomcat.classes}"
+             encoding="ISO-8859-1"
+             includeantruntime="false">
+    </javac>
+
+    <mkdir dir="${tomcat.build}/webapps/examples/jsp/plugin/applet"/>
+    <javac   srcdir="webapps/examples/jsp/plugin/applet"
+             destdir="${tomcat.build}/webapps/examples/jsp/plugin/applet"
+             debug="${compile.debug}" deprecation="${compile.deprecation}"
+             source="${compile.source}"
+             target="${compile.target}"
+             release="${compile.release}"
+             classpath="${tomcat.classes}"
+             encoding="ISO-8859-1"
+             includeantruntime="false">
+    </javac>
+
+    <!-- Convert the message files of the examples webapp from UTF-8 to ASCII.
+    This can be removed after upgrading to Java 9+ as the minimum JRE and
+    specifying the encoding when loading the ResourceBundles -->
+    <native2ascii src="webapps/examples/WEB-INF/classes"
+                  dest="${tomcat.build}/webapps/examples/WEB-INF/classes"
+                  includes="**/LocalStrings*.properties"
+                  encoding="UTF-8"/>
 
   </target>
 
