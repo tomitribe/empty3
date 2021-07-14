@@ -35,3 +35,6 @@ thumbs.db
 Thumbs.db
 bin/setenv.*
 java/org/apache/catalina/startup/catalina.properties
+.idea
+.DS_Store
+

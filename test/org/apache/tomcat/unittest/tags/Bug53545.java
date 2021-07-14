@@ -14,15 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package org.apache.tomcat.util.http.parser;
+package org.apache.tomcat.unittest.tags;
 
-import org.junit.Assert;
-import org.junit.Test;
+import javax.servlet.jsp.tagext.BodyTagSupport;
 
-public class TestHttpParser {
-
-    @Test
-    public void testTokenDel() {
-        Assert.assertFalse("DEL is not a token", HttpParser.isToken(127));
-    }
+public class Bug53545 extends BodyTagSupport {
+    private static final long serialVersionUID = 1L;
 }

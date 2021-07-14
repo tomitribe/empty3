@@ -16,14 +16,18 @@
  */
 package org.apache.catalina.startup;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.catalina.Context;
+import org.apache.catalina.Host;
+import org.apache.catalina.core.StandardContext;
+import org.apache.catalina.core.StandardHost;
+import org.apache.catalina.deploy.ContextEnvironment;
+import org.apache.catalina.deploy.ContextResourceLink;
+import org.apache.catalina.ha.context.ReplicatedContext;
+import org.apache.catalina.realm.GenericPrincipal;
+import org.apache.catalina.realm.RealmBase;
+import org.apache.tomcat.util.buf.ByteChunk;
+import org.junit.Assert;
+import org.junit.Test;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -32,23 +36,19 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import org.junit.Test;
-
-import org.apache.catalina.Context;
-import org.apache.catalina.Host;
-import org.apache.catalina.core.StandardContext;
-import org.apache.catalina.core.StandardHost;
-import org.apache.catalina.deploy.ContextEnvironment;
-import org.apache.catalina.deploy.ContextResourceLink;
-import org.apache.catalina.ha.context.ReplicatedContext;
-import org.apache.tomcat.util.buf.ByteChunk;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.net.URL;
+import java.net.URLConnection;
+import java.security.Principal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TestTomcat extends TomcatBaseTest {
 
@@ -103,9 +103,7 @@ public class TestTomcat extends TomcatBaseTest {
                         (javax.naming.Context) initCtx.lookup("java:comp/env");
                 name = (String) envCtx.lookup(JNDI_ENV_NAME);
             } catch (NamingException e) {
-                IOException ioe = new IOException(e.getMessage());
-                ioe.initCause(e);
-                throw ioe;
+                throw new IOException(e);
             }
 
             res.getWriter().write("Hello, " + name);
@@ -190,45 +188,45 @@ public class TestTomcat extends TomcatBaseTest {
     }
 
 
-//    /**
-//     * Simple Realm that uses a configurable {@link Map} to link user names and
-//     * passwords.
-//     */
-//    public static final class MapRealm extends RealmBase {
-//        private Map<String,String> users = new HashMap<String,String>();
-//        private Map<String,List<String>> roles =
-//            new HashMap<String,List<String>>();
-//
-//        public void addUser(String username, String password) {
-//            users.put(username, password);
-//        }
-//
-//        public void addUserRole(String username, String role) {
-//            List<String> userRoles = roles.get(username);
-//            if (userRoles == null) {
-//                userRoles = new ArrayList<String>();
-//                roles.put(username, userRoles);
-//            }
-//            userRoles.add(role);
-//        }
-//
-//        @Override
-//        protected String getName() {
-//            return "MapRealm";
-//        }
-//
-//        @Override
-//        protected String getPassword(String username) {
-//            return users.get(username);
-//        }
-//
-//        @Override
-//        protected Principal getPrincipal(String username) {
-//            return new GenericPrincipal(username, getPassword(username),
-//                    roles.get(username));
-//        }
-//
-//    }
+    /**
+     * Simple Realm that uses a configurable {@link Map} to link user names and
+     * passwords.
+     */
+    public static final class MapRealm extends RealmBase {
+        private Map<String,String> users = new HashMap<String,String>();
+        private Map<String,List<String>> roles =
+            new HashMap<String,List<String>>();
+
+        public void addUser(String username, String password) {
+            users.put(username, password);
+        }
+
+        public void addUserRole(String username, String role) {
+            List<String> userRoles = roles.get(username);
+            if (userRoles == null) {
+                userRoles = new ArrayList<String>();
+                roles.put(username, userRoles);
+            }
+            userRoles.add(role);
+        }
+
+        @Override
+        protected String getName() {
+            return "MapRealm";
+        }
+
+        @Override
+        protected String getPassword(String username) {
+            return users.get(username);
+        }
+
+        @Override
+        protected Principal getPrincipal(String username) {
+            return new GenericPrincipal(this, username, getPassword(username),
+                    roles.get(username));
+        }
+
+    }
 
     /**
      * Start tomcat with a single context and one
@@ -243,7 +241,6 @@ public class TestTomcat extends TomcatBaseTest {
 
         // No file system docBase required
         Context ctx = tomcat.addContext("", null);
-
         // You can customize the context by calling
         // its API
 
@@ -253,7 +250,7 @@ public class TestTomcat extends TomcatBaseTest {
         tomcat.start();
 
         ByteChunk res = getUrl("http://localhost:" + getPort() + "/");
-        assertEquals("Hello world", res.toString());
+        Assert.assertEquals("Hello world", res.toString());
     }
 
     @Test
@@ -261,7 +258,7 @@ public class TestTomcat extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         File appDir = new File(getBuildDirectory(), "webapps/examples");
-
+        // app dir is relative to server home
         tomcat.addWebapp(null, "/examples", appDir.getAbsolutePath());
 
         tomcat.start();
@@ -269,7 +266,7 @@ public class TestTomcat extends TomcatBaseTest {
         ByteChunk res = getUrl("http://localhost:" + getPort() +
                 "/examples/servlets/servlet/HelloWorldExample");
         String text = res.toString();
-        assertTrue(text, text.indexOf("<a href=\"../helloworld.html\">") > 0);
+        Assert.assertTrue(text, text.indexOf("<a href=\"../helloworld.html\">") > 0);
     }
 
     @Test
@@ -285,7 +282,7 @@ public class TestTomcat extends TomcatBaseTest {
         ByteChunk res = getUrl("http://localhost:" + getPort() +
                 "/examples/jsp/jsp2/el/basic-arithmetic.jsp");
         String text = res.toString();
-        assertTrue(text, text.indexOf("<td>${(1==2) ? 3 : 4}</td>") > 0);
+        Assert.assertTrue(text, text.indexOf("<td>${(1==2) ? 3 : 4}</td>") > 0);
     }
 
     @Test
@@ -303,7 +300,7 @@ public class TestTomcat extends TomcatBaseTest {
         tomcat.start();
 
         ByteChunk res = getUrl("http://localhost:" + getPort() + "/");
-        assertEquals("Hello world", res.toString());
+        Assert.assertEquals("Hello world", res.toString());
     }
 
     @Test
@@ -344,7 +341,7 @@ public class TestTomcat extends TomcatBaseTest {
         tomcat.start();
 
         ByteChunk res = getUrl("http://localhost:" + getPort() + "/");
-        assertEquals("Hello, Tomcat User", res.toString());
+        Assert.assertEquals("Hello, Tomcat User", res.toString());
     }
 
     /**
@@ -380,7 +377,7 @@ public class TestTomcat extends TomcatBaseTest {
         tomcat.start();
 
         ByteChunk res = getUrl("http://localhost:" + getPort() + "/");
-        assertEquals("Hello, Tomcat User", res.toString());
+        Assert.assertEquals("Hello, Tomcat User", res.toString());
     }
 
 
@@ -407,8 +404,8 @@ public class TestTomcat extends TomcatBaseTest {
 
         int rc =getUrl("http://localhost:" + getPort() + contextPath +
                 "/testGetResource", res, null);
-        assertEquals(HttpServletResponse.SC_OK, rc);
-        assertTrue(res.toString().contains("<?xml version=\"1.0\" "));
+        Assert.assertEquals(HttpServletResponse.SC_OK, rc);
+        Assert.assertTrue(res.toString().contains("<?xml version=\"1.0\" "));
     }
 
     @Test
@@ -427,7 +424,7 @@ public class TestTomcat extends TomcatBaseTest {
             ex.printStackTrace();
             e = ex;
         }
-        assertNull(e);
+        Assert.assertNull(e);
     }
 
     @Test
@@ -444,21 +441,21 @@ public class TestTomcat extends TomcatBaseTest {
         tomcat.start();
 
         ByteChunk res = getUrl("http://localhost:" + getPort() + "/");
-        assertEquals("OK", res.toString());
+        Assert.assertEquals("OK", res.toString());
 
-        assertEquals(1, initCount.getCallCount());
+        Assert.assertEquals(1, initCount.getCallCount());
     }
 
     @Test
     public void testGetWebappConfigFileFromDirectory() {
         Tomcat tomcat = new Tomcat();
-        assertNotNull(tomcat.getWebappConfigFile("test/deployment/dirContext", ""));
+        Assert.assertNotNull(tomcat.getWebappConfigFile("test/deployment/dirContext", ""));
     }
 
     @Test
     public void testGetWebappConfigFileFromDirectoryNegative() {
         Tomcat tomcat = new Tomcat();
-        assertNull(tomcat.getWebappConfigFile("test/deployment/dirNoContext", ""));
+        Assert.assertNull(tomcat.getWebappConfigFile("test/deployment/dirNoContext", ""));
     }
 
 // Reading context.xml from a war file without copying it
@@ -557,7 +554,7 @@ public class TestTomcat extends TomcatBaseTest {
 
         // No file system docBase required
         Context ctx = tomcat.addContext(null, "", null);
-        assertEquals(StandardContext.class.getName(), ctx.getClass().getName());
+        Assert.assertEquals(StandardContext.class.getName(), ctx.getClass().getName());
     }
 
     @Test
@@ -571,7 +568,7 @@ public class TestTomcat extends TomcatBaseTest {
         // No file system docBase required
         try {
             tomcat.addContext(null, "", null);
-            fail();
+            Assert.fail();
         } catch (IllegalArgumentException e) {
             // OK
         }
@@ -588,7 +585,7 @@ public class TestTomcat extends TomcatBaseTest {
 
         // No file system docBase required
         Context ctx = tomcat.addContext(host, "", null);
-        assertEquals(ReplicatedContext.class.getName(), ctx.getClass()
+        Assert.assertEquals(ReplicatedContext.class.getName(), ctx.getClass()
                 .getName());
     }
 
