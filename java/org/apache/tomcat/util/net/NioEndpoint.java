@@ -1673,7 +1673,7 @@ public class NioEndpoint extends AbstractEndpoint {
                     NioChannel channel = attachment.getChannel();
                     if (sk.isReadable() || sk.isWritable() ) {
                         if ( attachment.getSendfileData() != null ) {
-                            processSendfile(sk,attachment,true, false, false);
+                            processSendfile(sk, attachment, false);
                         } else if ( attachment.getComet() ) {
                             //check if thread is available
                             if ( isWorkerAvailable() ) {
@@ -1718,7 +1718,8 @@ public class NioEndpoint extends AbstractEndpoint {
             return result;
         }
 
-        public boolean processSendfile(SelectionKey sk, KeyAttachment attachment, boolean reg, boolean event, boolean calledByProcessor) {
+        public SendfileState processSendfile(SelectionKey sk, KeyAttachment attachment,
+                boolean calledByProcessor) {
             NioChannel sc = null;
             try {
                 unreg(sk, attachment, sk.readyOps());
@@ -1733,7 +1734,7 @@ public class NioEndpoint extends AbstractEndpoint {
                     File f = new File(sd.fileName);
                     if ( !f.exists() ) {
                         cancelledKey(sk,SocketStatus.ERROR,false);
-                        return false;
+                        return SendfileState.ERROR;
                     }
                     sd.fchannel = new FileInputStream(f).getChannel();
                 }
@@ -1770,51 +1771,61 @@ public class NioEndpoint extends AbstractEndpoint {
                     }
                     attachment.setSendfileData(null);
                     try {sd.fchannel.close();}catch(Exception ignore){}
-                    if ( sd.keepAlive ) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Connection is keep alive, registering back for OP_READ");
+                    // For calls from outside the Poller, the caller is
+                    // responsible for registering the socket for the
+                    // appropriate event(s) if sendfile completes.
+                    if (!calledByProcessor) {
+                        switch (sd.keepAliveState) {
+                        case NONE: {
+                            if (log.isDebugEnabled()) {
+                                log.debug("Send file connection is being closed");
+                            }
+                            cancelledKey(sk,SocketStatus.STOP,false);
+                            break;
                         }
-                        if (event) {
-                            this.add(attachment.getChannel(),SelectionKey.OP_READ);
-                        } else {
-                            reg(sk,attachment,SelectionKey.OP_READ);
+                        case PIPELINED: {
+                            if (log.isDebugEnabled()) {
+                                log.debug("Connection is keep alive, processing pipe-lined data");
+                            }
+                            if (!processSocket(sc, null, true)) {
+                                cancelledKey(sk, SocketStatus.DISCONNECT, false);
+                            }
+                            break;
                         }
-                    } else {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Send file connection is being closed");
+                        case OPEN: {
+                            if (log.isDebugEnabled()) {
+                                log.debug("Connection is keep alive, registering back for OP_READ");
+                            }
+                            reg(sk, attachment, SelectionKey.OP_READ);
+                            break;
                         }
-                        cancelledKey(sk,SocketStatus.STOP,false);
-                        return false;
+                        }
                     }
+                    return SendfileState.DONE;
                 } else {
                     if (log.isDebugEnabled()) {
-                        log.debug("OP_WRITE for sendfile:" + sd.fileName);
+                        log.debug("OP_WRITE for sendfile: " + sd.fileName);
                     }
-                    if (event) {
+                    if (calledByProcessor) {
                         add(attachment.getChannel(),SelectionKey.OP_WRITE);
                     } else {
                         reg(sk,attachment,SelectionKey.OP_WRITE);
                     }
+                    return SendfileState.PENDING;
                 }
             }catch ( IOException x ) {
                 if ( log.isDebugEnabled() ) log.debug("Unable to complete sendfile request:", x);
                 if (!calledByProcessor) {
                     cancelledKey(sk,SocketStatus.ERROR,false);
                 }
-
-                cancelledKey(sk,SocketStatus.ERROR,false);
-                return false;
+                return SendfileState.ERROR;
             }catch ( Throwable t ) {
                 log.error("",t);
                 if (!calledByProcessor) {
-                    cancelledKey(sk,SocketStatus.ERROR,false);
+                    cancelledKey(sk, SocketStatus.ERROR, false);
                 }
-                
-                return false;
-            }finally {
-                if (sc!=null) sc.setSendFile(false);
+                return SendfileState.ERROR;
             }
-            return true;
         }
 
         protected void unreg(SelectionKey sk, KeyAttachment attachment, int readyOps) {
@@ -2168,7 +2179,7 @@ public class NioEndpoint extends AbstractEndpoint {
      */
     public interface Handler {
         public enum SocketState {
-            OPEN, CLOSED, LONG
+            OPEN, CLOSED, LONG, SENDFILE
         }
         public SocketState process(NioChannel socket);
         public SocketState event(NioChannel socket, SocketStatus status);
@@ -2429,7 +2440,7 @@ public class NioEndpoint extends AbstractEndpoint {
         public long pos;
         public long length;
         // KeepAlive flag
-        public boolean keepAlive;
+        public SendfileKeepAliveState keepAliveState = SendfileKeepAliveState.NONE;
     }
 
 }
