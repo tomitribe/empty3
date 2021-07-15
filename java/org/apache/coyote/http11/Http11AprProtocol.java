@@ -604,14 +604,8 @@ public class Http11AprProtocol extends AbstractProtocol
         }
         
         public SocketState process(long socket) {
-            Http11AprProcessor processor = null;
+            Http11AprProcessor processor = recycledProcessors.poll();
             try {
-                processor = connections.remove(Long.valueOf(socket));
-
-                if (processor == null) {
-                    processor = recycledProcessors.poll();
-                }
-
                 if (processor == null) {
                     processor = createProcessor();
                 }
@@ -627,17 +621,6 @@ public class Http11AprProtocol extends AbstractProtocol
                     // processor.
                     connections.put(socket, processor);
                     proto.endpoint.getCometPoller().add(socket);
-                } else if (state == SocketState.OPEN) {
-                    // In keep-alive but between requests. OK to recycle
-                    // processor. Continue to poll for the next request.
-                    recycledProcessors.offer(processor);
-                    proto.endpoint.getPoller().add(socket);
-                } else if (state == SocketState.SENDFILE) {
-                    // Sendfile in progress. If it fails, the socket will be
-                    // closed. If it works, the socket either be added to the
-                    // poller to await more data or processed if there are any
-                    // pipe-lined requests remaining.
-                    connections.put(socket, processor);
                 } else {
                     recycledProcessors.offer(processor);
                 }
