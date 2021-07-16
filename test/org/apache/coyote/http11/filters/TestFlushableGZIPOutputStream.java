@@ -58,7 +58,7 @@ public class TestFlushableGZIPOutputStream {
         flowBytes(part, output);
         output.flush();
 
-        part = "data2".getBytes("ASCII");
+        part = "data2".getBytes("UTF-8");
         parts.add(part);
         output.write(part);
         output.flush();
