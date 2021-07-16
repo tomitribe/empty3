@@ -349,6 +349,19 @@ public class WebdavServlet
             return;
         }
 
+        // Backport from 58b32048ce25cb812ae394dafb0cd57254c68155, adjusted to be 6.0.x compatible
+        boolean isError = false;
+        Integer status =
+                (Integer) req.getAttribute("javax.servlet.error.status_code");
+        if (status != null) {
+            isError = status.intValue() >= HttpServletResponse.SC_BAD_REQUEST;
+        }
+        if (isError) {
+            doGet(req, resp);
+            return;
+        }
+
+
         final String method = req.getMethod();
 
         if (debug > 0) {
