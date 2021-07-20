@@ -71,7 +71,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getConnector().getLocalPort());
+                setPort(tomcat.getConnector().getPort());
 
                 // Open connection
                 connect();
@@ -354,7 +354,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
                 Assert.assertTrue(connector.setProperty(
                         "rejectIllegalHeader", Boolean.toString(rejectIllegalHeader)));
                 tomcat.start();
-                setPort(connector.getLocalPort());
+                setPort(connector.getPort());
 
                 // Open connection
                 connect();
@@ -460,7 +460,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getConnector().getLocalPort());
+                setPort(tomcat.getConnector().getPort());
 
                 // Open connection
                 connect();
@@ -531,7 +531,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
                 Connector connector = tomcat.getConnector();
                 Assert.assertTrue(connector.setProperty("rejectIllegalHeader", "false"));
                 tomcat.start();
-                setPort(connector.getLocalPort());
+                setPort(connector.getPort());
 
                 // Open connection
                 connect();
@@ -673,7 +673,7 @@ public class TestInternalInputBuffer extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getConnector().getLocalPort());
+                setPort(tomcat.getConnector().getPort());
 
                 // Open connection
                 connect();
