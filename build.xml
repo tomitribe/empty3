@@ -118,6 +118,7 @@
     <pathelement location="${easymock.jar}"/>
     <pathelement location="${cglib.jar}"/>
     <pathelement location="${objenesis.jar}"/>
+    <pathelement location="${unboundid.jar}"/>
     <path refid="compile.classpath" />
     <path refid="tomcat.classpath" />
   </path>
@@ -862,6 +863,7 @@
         <jvmarg value="${test.formatter}"/>
         <jvmarg value="-Djava.net.preferIPv4Stack=${java.net.preferIPv4Stack}"/>
         <jvmarg value="-Dapple.awt.UIElement=true"/>
+        <!--<jvmarg value="-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=9009"/>-->
 
         <classpath refid="tomcat.test.classpath" />
 
@@ -1105,6 +1107,15 @@
       <param name="destfile" value="${easymock.jar}"/>
       <param name="destdir" value="${easymock.home}"/>
     </antcall>
+
+      <antcall target="downloadfile">
+          <param name="sourcefile" value="${unboundid.loc}"/>
+          <param name="destfile" value="${unboundid.jar}"/>
+          <param name="destdir" value="${unboundid.home}"/>
+          <param name="checksum.enabled" value="${unboundid.checksum.enabled}"/>
+          <param name="checksum.algorithm" value="${unboundid.checksum.algorithm}"/>
+          <param name="checksum.value" value="${unboundid.checksum.value}"/>
+      </antcall>
 
   </target>
 
