@@ -19,16 +19,16 @@ package org.apache.catalina.realm;
 import org.apache.catalina.Context;
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
-import org.apache.catalina.deploy.SecurityCollection;
 import org.apache.catalina.deploy.SecurityConstraint;
 import org.apache.catalina.startup.TesterMapRealm;
 import org.apache.tomcat.unittest.TesterContext;
-import org.apache.tomcat.unittest.TesterRequest;
 import org.apache.tomcat.unittest.TesterResponse;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,7 +55,8 @@ public class TestRealmBase {
     private static final String PWD_SSHA_PREFIX =
             "{SSHA}oFLhvfQVqFykEWu8v1pPE6nN0QRzYWx0dG9wcm90ZWN0cGFzc3dvcmQ=";
 
-    private static final String ROLE_ALL_ROLES="*";
+    public static final String ROLE_ALL_ROLES="*";
+    public static final String ROLE_ALL_AUTHENTICATED_USERS = "**";
 
 
     @Test
@@ -154,6 +155,52 @@ public class TestRealmBase {
 
         doRoleTest(userRoles, constraintRoles, applicationRoles, false);
     }
+
+
+    @Test
+    @Ignore("See treatAllAuthenticatedUsersAsApplicationRole comment")
+    public void testAllAuthenticatedUsers() throws IOException {
+        List<String> userRoles = new ArrayList<String>();
+        List<String> constraintRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        // Configure this test
+        constraintRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+
+        doRoleTest(userRoles, constraintRoles, applicationRoles, true);
+    }
+
+
+    @Test
+    public void testAllAuthenticatedUsersAsAppRoleNoUser() throws IOException {
+        List<String> userRoles = new ArrayList<String>();
+        List<String> constraintRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        // Configure this test
+        userRoles.add(ROLE1);
+        constraintRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        applicationRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+
+        doRoleTest(userRoles, constraintRoles, applicationRoles, false);
+    }
+
+
+    @Test
+    public void testAllAuthenticatedUsersAsAppRoleWithUser()
+        throws IOException {
+        List<String> userRoles = new ArrayList<String>();
+        List<String> constraintRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        // Configure this test
+        userRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        constraintRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        applicationRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+
+        doRoleTest(userRoles, constraintRoles, applicationRoles, true);
+    }
+
 
 
     @Test
@@ -314,6 +361,89 @@ public class TestRealmBase {
 
 
     @Test
+    @Ignore("See treatAllAuthenticatedUsersAsApplicationRole comment")
+    public void testCombineConstraints08() throws IOException {
+        // Allowed roles should be the union of the roles in the constraints
+        // ** is any authenticated user
+        // User has no role
+        List<String> userRoles = new ArrayList<String>();
+        List<String> constraintOneRoles = new ArrayList<String>();
+        List<String> constraintTwoRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        constraintOneRoles.add(ROLE1);
+        constraintTwoRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        applicationRoles.add(ROLE2);
+        applicationRoles.add(ROLE3);
+
+        doRoleTest(userRoles, constraintOneRoles, constraintTwoRoles,
+                applicationRoles, true);
+    }
+
+
+    @Test
+    public void testCombineConstraints09() throws IOException {
+        // Allowed roles should be the union of the roles in the constraints
+        // ** is any authenticated user
+        // User has constraint role
+        List<String> userRoles = new ArrayList<String>();
+        List<String> constraintOneRoles = new ArrayList<String>();
+        List<String> constraintTwoRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        userRoles.add(ROLE1);
+        constraintOneRoles.add(ROLE1);
+        constraintTwoRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        applicationRoles.add(ROLE2);
+        applicationRoles.add(ROLE3);
+
+        doRoleTest(userRoles, constraintOneRoles, constraintTwoRoles,
+                applicationRoles, true);
+    }
+
+
+    @Test
+    @Ignore("See treatAllAuthenticatedUsersAsApplicationRole comment")
+    public void testCombineConstraints10() throws IOException {
+        // Allowed roles should be the union of the roles in the constraints
+        // ** is any authenticated user
+        // User has app role
+        List<String> userRoles = new ArrayList<String>();
+        List<String> constraintOneRoles = new ArrayList<String>();
+        List<String> constraintTwoRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        userRoles.add(ROLE2);
+        constraintOneRoles.add(ROLE1);
+        constraintTwoRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        applicationRoles.add(ROLE2);
+        applicationRoles.add(ROLE3);
+
+        doRoleTest(userRoles, constraintOneRoles, constraintTwoRoles,
+                applicationRoles, true);
+    }
+
+
+    @Test
+    public void testCombineConstraints11() throws IOException {
+        // Allowed roles should be the union of the roles in the constraints
+        // ** is any authenticated user
+        // User is not authenticated
+        List<String> constraintOneRoles = new ArrayList<String>();
+        List<String> constraintTwoRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        constraintOneRoles.add(ROLE1);
+        constraintTwoRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        applicationRoles.add(ROLE2);
+        applicationRoles.add(ROLE3);
+
+        doRoleTest(null, constraintOneRoles, constraintTwoRoles,
+                applicationRoles, false);
+    }
+
+
+    @Test
     public void testCombineConstraints12() throws IOException {
         // Allowed roles should be the union of the roles in the constraints
         // Constraint without role or implied role permits unauthenticated users
@@ -338,6 +468,22 @@ public class TestRealmBase {
         List<String> applicationRoles = new ArrayList<String>();
 
         constraintTwoRoles.add(ROLE_ALL_ROLES);
+        applicationRoles.add(ROLE1);
+
+        doRoleTest(null, null, constraintTwoRoles,
+                applicationRoles, true);
+    }
+
+
+    @Test
+    public void testCombineConstraints14() throws IOException {
+        // Allowed roles should be the union of the roles in the constraints
+        // Constraint without role or implied role permits unauthenticated users
+        // User is not authenticated
+        List<String> constraintTwoRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        constraintTwoRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
         applicationRoles.add(ROLE1);
 
         doRoleTest(null, null, constraintTwoRoles,
@@ -382,6 +528,23 @@ public class TestRealmBase {
                 applicationRoles, false);
     }
 
+    @Test
+    public void testCombineConstraints17() throws IOException {
+        // Allowed roles should be the union of the roles in the constraints
+        // Constraint with empty auth section prevents all access
+        // User matches all authenticated users
+        List<String> userRoles = new ArrayList<String>();
+        List<String> constraintOneRoles = new ArrayList<String>();
+        List<String> constraintTwoRoles = new ArrayList<String>();
+        List<String> applicationRoles = new ArrayList<String>();
+
+        userRoles.add(ROLE1);
+        constraintTwoRoles.add(ROLE_ALL_AUTHENTICATED_USERS);
+        applicationRoles.add(ROLE1);
+
+        doRoleTest(userRoles, constraintOneRoles, constraintTwoRoles,
+                   applicationRoles, false);
+    }
 
     /**
      * @param userRoles         <code>null</code> tests unauthenticated access
@@ -415,6 +578,10 @@ public class TestRealmBase {
             constraintOne.setAuthConstraint(true);
             for (String constraintRole : constraintOneRoles) {
                 constraintOne.addAuthRole(constraintRole);
+                if (applicationRoles.contains(
+                        ROLE_ALL_AUTHENTICATED_USERS)) {
+                    treatAllAuthenticatedUsersAsApplicationRole(constraintOne);
+                }
             }
         }
         SecurityConstraint constraintTwo = new SecurityConstraint();
@@ -422,6 +589,10 @@ public class TestRealmBase {
             constraintTwo.setAuthConstraint(true);
             for (String constraintRole : constraintTwoRoles) {
                 constraintTwo.addAuthRole(constraintRole);
+                if (applicationRoles.contains(
+                        ROLE_ALL_AUTHENTICATED_USERS)) {
+                    treatAllAuthenticatedUsersAsApplicationRole(constraintTwo);
+                }
             }
         }
         SecurityConstraint[] constraints =
@@ -434,6 +605,7 @@ public class TestRealmBase {
         for (String applicationRole : applicationRoles) {
             context.addSecurityRole(applicationRole);
         }
+        request.getMappingData().context = context;
         request.setContext(context);
 
         // Set up an authenticated user
@@ -447,7 +619,32 @@ public class TestRealmBase {
         boolean result = mapRealm.hasResourcePermission(
                 request, response, constraints, null);
 
-        Assert.assertEquals(Boolean.valueOf(expected), Boolean.valueOf(result));
+        Assert.assertEquals(expected, result);
     }
+
+    /**
+     * From SecurityConstraints in newer Tomcat version to mimic the logic
+     * Still missing the ROLE_ALL_AUTHENTICATED_USERS and ROLE_ALL_ROLES in there
+     * So some test have to be ignored
+     */
+    public void treatAllAuthenticatedUsersAsApplicationRole(final SecurityConstraint sc) {
+        String[] results = new String[sc.findAuthRoles().length + 1];
+        for (int i = 0; i < sc.findAuthRoles().length; i++) {
+            results[i] = sc.findAuthRoles()[i];
+        }
+        results[sc.findAuthRoles().length] = ROLE_ALL_AUTHENTICATED_USERS;
+        sc.setAuthConstraint(true);
+
+        try {
+            final Field authRoles = SecurityConstraint.class.getDeclaredField("authRoles");
+            authRoles.setAccessible(true);
+            authRoles.set(sc, results);
+
+        } catch (final Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
 }

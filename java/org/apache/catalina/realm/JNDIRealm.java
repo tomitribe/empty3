@@ -123,8 +123,10 @@ import org.apache.tomcat.util.buf.CharChunk;
  *         property.</li>
  *     <li>The <code>roleSearch</code> pattern optionally includes pattern
  *         replacements "{0}" for the distinguished name, and/or "{1}" for
- *         the username, of the authenticated user for which roles will be
- *         retrieved.</li>
+ *         the username, and/or "{2}" the value of an attribute from the
+ *         user's directory entry (the attribute is specified by the
+ *         <code>userRoleAttribute</code> property), of the authenticated user
+ *         for which roles will be retrieved.</li>
  *     <li>The <code>roleBase</code> property can be set to the element that
  *         is the base of the search for matching roles.  If not specified,
  *         the entire context will be searched.</li>
@@ -276,6 +278,13 @@ public class JNDIRealm extends RealmBase {
      */
     protected String userSearch = null;
 
+    /**
+     * When searching for users, should the search be performed as the user
+     * currently being authenticated? If false, {@link #connectionName} and
+     * {@link #connectionPassword} will be used if specified, else an anonymous
+     * connection will be used.
+     */
+    private boolean userSearchAsUser = false;
 
     /**
      * The MessageFormat object associated with the current
@@ -295,6 +304,13 @@ public class JNDIRealm extends RealmBase {
      */
     protected String userPassword = null;
 
+    /**
+     * The name of the attribute inside the users
+     * directory entry where the value will be
+     * taken to search for roles
+     * This attribute is not used during a nested search
+     */
+    protected String userRoleAttribute = null;
 
     /**
      * A string of LDAP user patterns or paths, ":"-separated
@@ -326,6 +342,11 @@ public class JNDIRealm extends RealmBase {
      */
     protected String roleBase = "";
 
+    /**
+     * The MessageFormat object associated with the current
+     * <code>roleBase</code>.
+     */
+    protected MessageFormat roleBaseFormat = null;
 
     /**
      * The MessageFormat object associated with the current
@@ -364,6 +385,13 @@ public class JNDIRealm extends RealmBase {
      */
     protected boolean roleNested = false;
 
+    /**
+     * When searching for user roles, should the search be performed as the user
+     * currently being authenticated? If false, {@link #connectionName} and
+     * {@link #connectionPassword} will be used if specified, else an anonymous
+     * connection will be used.
+     */
+    protected boolean roleSearchAsUser = false;
 
     /**
      * An alternate URL, to which, we should connect if connectionURL fails.
@@ -608,11 +636,21 @@ public class JNDIRealm extends RealmBase {
     public void setUserSearch(String userSearch) {
 
         this.userSearch = userSearch;
-        if (userSearch == null)
+        if (userSearch == null) {
             userSearchFormat = null;
-        else
+        } else {
             userSearchFormat = new MessageFormat(userSearch);
+        }
+    }
 
+
+    public boolean isUserSearchAsUser() {
+        return userSearchAsUser;
+    }
+
+
+    public void setUserSearchAsUser(boolean userSearchAsUser) {
+        this.userSearchAsUser = userSearchAsUser;
     }
 
 
@@ -677,7 +715,11 @@ public class JNDIRealm extends RealmBase {
     public void setRoleBase(String roleBase) {
 
         this.roleBase = roleBase;
-
+        if (roleBase == null) {
+            roleBaseFormat = null;
+        } else {
+            roleBaseFormat = new MessageFormat(roleBase);
+        }
     }
 
 
@@ -728,6 +770,14 @@ public class JNDIRealm extends RealmBase {
 
     }
 
+    public boolean isRoleSearchAsUser() {
+        return roleSearchAsUser;
+    }
+
+
+    public void setRoleSearchAsUser(boolean roleSearchAsUser) {
+        this.roleSearchAsUser = roleSearchAsUser;
+    }
 
     /**
      * Return the "search subtree for roles" flag.
@@ -791,9 +841,17 @@ public class JNDIRealm extends RealmBase {
     public void setUserPassword(String userPassword) {
 
         this.userPassword = userPassword;
-
     }
 
+
+    public String getUserRoleAttribute() {
+        return userRoleAttribute;
+    }
+
+
+    public void setUserRoleAttribute(String userRoleAttribute) {
+        this.userRoleAttribute = userRoleAttribute;
+    }
 
     /**
      * Return the message format pattern for selecting users in this Realm.
@@ -818,9 +876,9 @@ public class JNDIRealm extends RealmBase {
     public void setUserPattern(String userPattern) {
 
         this.userPattern = userPattern;
-        if (userPattern == null)
+        if (userPattern == null) {
             userPatternArray = null;
-        else {
+        } else {
             userPatternArray = parseUserPatternString(userPattern);
             int len = this.userPatternArray.length;
             userPatternFormatArray = new MessageFormat[len];
@@ -1173,19 +1231,45 @@ public class JNDIRealm extends RealmBase {
         User user = null;
 
         // Get attributes to retrieve from user entry
-        ArrayList<String> list = new ArrayList<String>();
-        if (userPassword != null)
+        List<String> list = new ArrayList<String>();
+        if (userPassword != null) {
             list.add(userPassword);
-        if (userRoleName != null)
+        }
+        if (userRoleName != null) {
             list.add(userRoleName);
+        }
+        if (userRoleAttribute != null) {
+            list.add(userRoleAttribute);
+        }
         String[] attrIds = new String[list.size()];
         list.toArray(attrIds);
 
         // Use pattern or search for user entry
         if (userPatternFormatArray != null && curUserPattern >= 0) {
             user = getUserByPattern(context, username, credentials, attrIds, curUserPattern);
+            if (containerLog.isDebugEnabled()) {
+                containerLog.debug("Found user by pattern [" + user + "]");
+            }
         } else {
+            boolean thisUserSearchAsUser = isUserSearchAsUser();
+            try {
+                if (thisUserSearchAsUser) {
+                    userCredentialsAdd(context, username, credentials);
+                }
             user = getUserBySearch(context, username, attrIds);
+            } finally {
+                if (thisUserSearchAsUser) {
+                    userCredentialsRemove(context);
+                }
+            }
+            if (containerLog.isDebugEnabled()) {
+                containerLog.debug("Found user by search [" + user + "]");
+            }
+        }
+        if (userPassword == null && credentials != null && user != null) {
+            // The password is available. Insert it since it may be required for
+            // role searches.
+            return new User(user.getUserName(), user.getDN(), credentials, user.getRoles(), user.getUserRoleId());
         }
 
         return user;
@@ -1202,7 +1286,7 @@ public class JNDIRealm extends RealmBase {
      * @param attrIds String[]containing names of attributes to
      * @param dn Distinguished name of the user
      * retrieve.
-     *
+     * @return the User object
      * @exception NamingException if a directory server error occurs
      */
     protected User getUserByPattern(DirContext context,
@@ -1213,7 +1297,7 @@ public class JNDIRealm extends RealmBase {
 
         // If no attributes are requested, no need to look for them
         if (attrIds == null || attrIds.length == 0) {
-            return new User(username, dn, null, null);
+            return new User(username, dn, null, null,null);
         }
 
         // Get required attributes from user entry
@@ -1221,22 +1305,30 @@ public class JNDIRealm extends RealmBase {
         try {
             attrs = context.getAttributes(dn, attrIds);
         } catch (NameNotFoundException e) {
-            return (null);
+            return null;
         }
-        if (attrs == null)
-            return (null);
+        if (attrs == null) {
+            return null;
+        }
 
         // Retrieve value of userPassword
         String password = null;
-        if (userPassword != null)
+        if (userPassword != null) {
             password = getAttributeValue(userPassword, attrs);
+        }
+
+        String userRoleAttrValue = null;
+        if (userRoleAttribute != null) {
+            userRoleAttrValue = getAttributeValue(userRoleAttribute, attrs);
+        }
 
         // Retrieve values of userRoleName attribute
         ArrayList<String> roles = null;
-        if (userRoleName != null)
+        if (userRoleName != null) {
             roles = addAttributeValues(userRoleName, attrs, roles);
+        }
 
-        return new User(username, dn, password, roles);
+        return new User(username, dn, password, roles, userRoleAttrValue);
     }
 
 
@@ -1267,8 +1359,12 @@ public class JNDIRealm extends RealmBase {
         if (username == null || userPatternFormatArray[curUserPattern] == null)
             return (null);
 
-        // Form the dn from the user pattern
-        String dn = userPatternFormatArray[curUserPattern].format(new String[] { username });
+        // Form the DistinguishedName from the user pattern.
+        // Escape in case username contains a character with special meaning in
+        // an attribute value.
+        //String dn = userPatternFormatArray[curUserPattern].format(new String[] { username });
+        String dn = userPatternFormatArray[curUserPattern].format(
+                new String[] { doAttributeValueEscaping(username) });
 
         try {
             user = getUserByPattern(context, username, attrIds, dn);
@@ -1321,11 +1417,15 @@ public class JNDIRealm extends RealmBase {
                                    String[] attrIds)
         throws NamingException {
 
-        if (username == null || userSearchFormat == null)
-            return (null);
+        if (username == null || userSearchFormat == null) {
+            return null;
+        }
 
         // Form the search filter
-        String filter = userSearchFormat.format(new String[] { username });
+        // Escape in case username contains a character with special meaning in
+        // a search filter.
+        //String filter = userSearchFormat.format(new String[] { username });
+        String filter = userSearchFormat.format(new String[] { doFilterEscaping(username) });
 
         // Set up the search controls
         SearchControls constraints = new SearchControls();
@@ -1338,8 +1438,9 @@ public class JNDIRealm extends RealmBase {
         }
 
         // Specify the attributes to be retrieved
-        if (attrIds == null)
+        if (attrIds == null) {
             attrIds = new String[0];
+        }
         constraints.setReturningAttributes(attrIds);
 
         NamingEnumeration<SearchResult> results =
@@ -1352,48 +1453,60 @@ public class JNDIRealm extends RealmBase {
                     return null;
                 }
             } catch (PartialResultException ex) {
-                if (!adCompat)
+                if (!adCompat) {
                     throw ex;
-                else
+                } else {
                     return null;
             }
-    
+            }
+
             // Get result for the first entry found
             SearchResult result = results.next();
     
             // Check no further entries were found
             try {
                 if (results.hasMore()) {
-                    if(containerLog.isInfoEnabled())
+                    if (containerLog.isInfoEnabled()) {
                         containerLog.info("username " + username + " has multiple entries");
+                    }
                     return null;
                 }
             } catch (PartialResultException ex) {
-                if (!adCompat)
+                if (!adCompat) {
                     throw ex;
             }
-    
+            }
+
             String dn = getDistinguishedName(context, userBase, result);
     
-            if (containerLog.isTraceEnabled())
+            if (containerLog.isTraceEnabled()) {
                 containerLog.trace("  entry found for " + username + " with dn " + dn);
-    
+            }
+
             // Get the entry's attributes
             Attributes attrs = result.getAttributes();
-            if (attrs == null)
-                return (null);
+            if (attrs == null) {
+                return null;
+            }
     
             // Retrieve value of userPassword
             String password = null;
-            if (userPassword != null)
+            if (userPassword != null) {
                 password = getAttributeValue(userPassword, attrs);
-    
+            }
+
+            String userRoleAttrValue = null;
+            if (userRoleAttribute != null) {
+                userRoleAttrValue = getAttributeValue(userRoleAttribute, attrs);
+            }
+
             // Retrieve values of userRoleName attribute
             ArrayList<String> roles = null;
-            if (userRoleName != null)
+            if (userRoleName != null) {
                 roles = addAttributeValues(userRoleName, attrs, roles);
-    
-            return new User(username, dn, password, roles);
+            }
+
+            return new User(username, dn, password, roles, userRoleAttrValue);
         } finally {
             if (results != null) {
                 results.close();
@@ -1552,6 +1665,8 @@ public class JNDIRealm extends RealmBase {
          if (credentials == null || user == null)
              return (false);
 
+         // This is returned from the directory so will be attribute value
+         // escaped if required
          String dn = user.getDN();
          if (dn == null)
              return (false);
@@ -1600,6 +1715,45 @@ public class JNDIRealm extends RealmBase {
      }
 
     /**
+     * Configure the context to use the provided credentials for
+     * authentication.
+     *
+     * @param context      DirContext to configure
+     * @param dn           Distinguished name of user
+     * @param credentials  Credentials of user
+     * @exception NamingException if a directory server error occurs
+     */
+    private void userCredentialsAdd(DirContext context, String dn, String credentials) throws NamingException {
+        // Set up security environment to bind as the user
+        context.addToEnvironment(Context.SECURITY_PRINCIPAL, dn);
+        context.addToEnvironment(Context.SECURITY_CREDENTIALS, credentials);
+    }
+
+
+    /**
+     * Configure the context to use {@link #connectionName} and
+     * {@link #connectionPassword} if specified or an anonymous connection if
+     * those attributes are not specified.
+     *
+     * @param context      DirContext to configure
+     * @exception NamingException if a directory server error occurs
+     */
+    private void userCredentialsRemove(DirContext context) throws NamingException {
+        // Restore the original security environment
+        if (connectionName != null) {
+            context.addToEnvironment(Context.SECURITY_PRINCIPAL, connectionName);
+        } else {
+            context.removeFromEnvironment(Context.SECURITY_PRINCIPAL);
+        }
+
+        if (connectionPassword != null) {
+            context.addToEnvironment(Context.SECURITY_CREDENTIALS, connectionPassword);
+        } else {
+            context.removeFromEnvironment(Context.SECURITY_CREDENTIALS);
+        }
+    }
+
+    /**
      * Return a List of roles associated with the given User.  Any
      * roles present in the user's directory entry are supplemented by
      * a directory search. If no roles are associated with this user,
@@ -1616,8 +1770,13 @@ public class JNDIRealm extends RealmBase {
         if (user == null)
             return (null);
 
+        // This is returned from the directory so will be attribute value
+        // escaped if required
         String dn = user.getDN();
+        // This is the name the user provided to the authentication process so
+        // it will not be escaped
         String username = user.getUserName();
+        String userRoleId = user.getUserRoleId();
 
         if (dn == null || username == null)
             return (null);
@@ -1643,19 +1802,46 @@ public class JNDIRealm extends RealmBase {
         // Are we configured to do role searches?
         if ((roleFormat == null) || (roleName == null))
             return (list);
-        
-        // Set up parameters for an appropriate search
-        String filter = roleFormat.format(new String[] { doRFC2254Encoding(dn), username });
+
+
+        //// Set up parameters for an appropriate search
+        //String filter = roleFormat.format(new String[] { doRFC2254Encoding(dn), username });
+
+        // Set up parameters for an appropriate search filter
+        // The dn is already attribute value escaped but the others are not
+        // This is a filter so all input will require filter escaping
+        String filter = roleFormat.format(new String[] {
+                doFilterEscaping(dn),
+                doFilterEscaping(doAttributeValueEscaping(username)),
+                doFilterEscaping(doAttributeValueEscaping(userRoleId)) });
         SearchControls controls = new SearchControls();
-        if (roleSubtree)
+        if (roleSubtree) {
             controls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-        else
+        } else {
             controls.setSearchScope(SearchControls.ONELEVEL_SCOPE);
+        }
         controls.setReturningAttributes(new String[] {roleName});
 
+        String base = null;
+        if (roleBaseFormat != null) {
+            NameParser np = context.getNameParser("");
+            Name name = np.parse(dn);
+            String nameParts[] = new String[name.size()];
+            for (int i = 0; i < name.size(); i++) {
+                // May have been returned with \<char> escaping rather than
+                // \<hex><hex>. Make sure it is \<hex><hex>.
+                nameParts[i] =  convertToHexEscape(name.get(i));
+            }
+            base = roleBaseFormat.format(nameParts);
+        } else {
+            base = "";
+        }
+
         // Perform the configured search and process the results
-        NamingEnumeration<SearchResult> results =
-            context.search(roleBase, filter, controls);
+        //NamingEnumeration<SearchResult> results = context.search(roleBase, filter, controls);
+        NamingEnumeration<SearchResult> results = searchAsUser(context, user, base, filter, controls,
+                isRoleSearchAsUser());
+
         if (results == null)
             return (list);  // Should never happen, but just in case ...
 
@@ -1664,17 +1850,19 @@ public class JNDIRealm extends RealmBase {
             while (results.hasMore()) {
                 SearchResult result = results.next();
                 Attributes attrs = result.getAttributes();
-                if (attrs == null)
+                if (attrs == null) {
                     continue;
-                String dname = getDistinguishedName(context, roleBase, result);
+                }
+                String dname = getDistinguishedName(context, base, result);
                 String name = getAttributeValue(roleName, attrs);
                 if (name != null && dname != null) {
                     groupMap.put(dname, name);
                 }
             }
         } catch (PartialResultException ex) {
-            if (!adCompat)
+            if (!adCompat) {
                 throw ex;
+            }
         } finally {
             results.close();
         }
@@ -1699,13 +1887,22 @@ public class JNDIRealm extends RealmBase {
                 Map<String, String> newThisRound = new HashMap<String, String>(); // Stores the groups we find in this iteration
 
                 for (Entry<String, String> group : newGroups.entrySet()) {
-                    filter = roleFormat.format(new String[] { group.getKey(), group.getValue() });
+                    //filter = roleFormat.format(new String[] { group.getKey(), group.getValue() });
+
+                    // Group key is already value escaped if required
+                    // Group value is not value escaped
+                    // Everything needs to be filter escaped
+                    filter = roleFormat.format(new String[] {
+                            doFilterEscaping(group.getKey()),
+                            doFilterEscaping(doAttributeValueEscaping(group.getValue())),
+                            doFilterEscaping(doAttributeValueEscaping(group.getValue())) });
 
                     if (containerLog.isTraceEnabled()) {
                         containerLog.trace("Perform a nested group search with base "+ roleBase + " and filter " + filter);
                     }
 
-                    results = context.search(roleBase, filter, controls);
+                    //results = context.search(roleBase, filter, controls);
+                    results = searchAsUser(context, user, base, filter, controls, isRoleSearchAsUser());
 
                     try {
                         while (results.hasMore()) {
@@ -1739,6 +1936,45 @@ public class JNDIRealm extends RealmBase {
 
         list.addAll(groupMap.values());
         return list;
+    }
+
+
+    /**
+     * Perform the search on the context as the {@code dn}, when
+     * {@code searchAsUser} is {@code true}, otherwise search the context with
+     * the default credentials.
+     *
+     * @param context
+     *            context to search on
+     * @param user
+     *            user to bind on
+     * @param base
+     *            base to start the search from
+     * @param filter
+     *            filter to use for the search
+     * @param controls
+     *            controls to use for the search
+     * @param searchAsUser
+     *            {@code true} when the search should be done as user, or
+     *            {@code false} for using the default credentials
+     * @return enumeration with all found entries
+     * @throws NamingException
+     *             if a directory server error occurs
+     */
+    private NamingEnumeration<SearchResult> searchAsUser(DirContext context, User user, String base, String filter,
+            SearchControls controls, boolean searchAsUser) throws NamingException {
+        NamingEnumeration<SearchResult> results;
+        try {
+            if (searchAsUser) {
+                userCredentialsAdd(context, user.getDN(), user.getPassword());
+            }
+            results = context.search(base, filter, controls);
+        } finally {
+            if (searchAsUser) {
+                userCredentialsRemove(context);
+            }
+        }
+        return results;
     }
 
 
@@ -2143,7 +2379,31 @@ public class JNDIRealm extends RealmBase {
      * @return String the escaped/encoded result
      */
     protected String doRFC2254Encoding(String inString) {
-        StringBuffer buf = new StringBuffer(inString.length());
+        return doFilterEscaping(inString);
+    }
+
+
+    /**
+     * Given an LDAP search string, returns the string with certain characters
+     * escaped according to RFC 2254 guidelines.
+     * The character mapping is as follows:
+     *     char -&gt;  Replacement
+     *    ---------------------------
+     *     *  -&gt; \2a
+     *     (  -&gt; \28
+     *     )  -&gt; \29
+     *     \  -&gt; \5c
+     *     \0 -&gt; \00
+     *
+     * @param inString string to escape according to RFC 2254 guidelines
+     *
+     * @return String the escaped/encoded result
+     */
+    protected String doFilterEscaping(String inString) {
+        if (inString == null) {
+            return null;
+        }
+        StringBuilder buf = new StringBuilder(inString.length());
         for (int i = 0; i < inString.length(); i++) {
             char c = inString.charAt(i);
             switch (c) {
@@ -2226,6 +2486,157 @@ public class JNDIRealm extends RealmBase {
         }
     }
 
+    /**
+     * Implements the necessary escaping to represent an attribute value as a
+     * String as per RFC 4514.
+     *
+     * @param input The original attribute value
+     * @return      The string representation of the attribute value
+     */
+    protected String doAttributeValueEscaping(String input) {
+        if (input == null) {
+            return null;
+        }
+        int len = input.length();
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < len; i++) {
+            char c = input.charAt(i);
+            switch (c) {
+            case ' ': {
+                if (i == 0 || i == (len -1)) {
+                    result.append("\\20");
+                } else {
+                    result.append(c);
+                }
+                break;
+            }
+            case '#': {
+                if (i == 0 ) {
+                    result.append("\\23");
+                } else {
+                    result.append(c);
+                }
+                break;
+            }
+            case '\"': {
+                result.append("\\22");
+                break;
+            }
+            case '+': {
+                result.append("\\2B");
+                break;
+            }
+            case ',': {
+                result.append("\\2C");
+                break;
+            }
+            case ';': {
+                result.append("\\3B");
+                break;
+            }
+            case '<': {
+                result.append("\\3C");
+                break;
+            }
+            case '>': {
+                result.append("\\3E");
+                break;
+            }
+            case '\\': {
+                result.append("\\5C");
+                break;
+            }
+            case '\u0000': {
+                result.append("\\00");
+                break;
+            }
+            default:
+                result.append(c);
+            }
+
+        }
+
+        return result.toString();
+    }
+
+    protected static String convertToHexEscape(String input) {
+        if (input.indexOf('\\') == -1) {
+            // No escaping present. Return original.
+            return input;
+        }
+
+        // +6 allows for 3 escaped characters by default
+        StringBuilder result = new StringBuilder(input.length() + 6);
+        boolean previousSlash = false;
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+
+            if (previousSlash) {
+                switch (c) {
+                case ' ': {
+                    result.append("\\20");
+                    break;
+                }
+                case '\"': {
+                    result.append("\\22");
+                    break;
+                }
+                case '#': {
+                    result.append("\\23");
+                    break;
+                }
+                case '+': {
+                    result.append("\\2B");
+                    break;
+                }
+                case ',': {
+                    result.append("\\2C");
+                    break;
+                }
+                case ';': {
+                    result.append("\\3B");
+                    break;
+                }
+                case '<': {
+                    result.append("\\3C");
+                    break;
+                }
+                case '=': {
+                    result.append("\\3D");
+                    break;
+                }
+                case '>': {
+                    result.append("\\3E");
+                    break;
+                }
+                case '\\': {
+                    result.append("\\5C");
+                    break;
+                }
+                default:
+                    result.append('\\');
+                    result.append(c);
+                }
+                previousSlash = false;
+            } else {
+                if (c == '\\') {
+                    previousSlash = true;
+                } else {
+                    result.append(c);
+                }
+            }
+        }
+
+        if (previousSlash) {
+            result.append('\\');
+        }
+
+        return result.toString();
+    }
+
+
+
 
      // ------------------------------------------------------ Private Classes
     
@@ -2238,9 +2649,21 @@ public class JNDIRealm extends RealmBase {
          final private String dn;
          final private String password;
          final private List<String> roles;
+         final private String userRoleId;
 
-         public User(String username, String dn, String password,
-                 List<String> roles) {
+//         public User(String username, String dn, String password,
+//                 List<String> roles) {
+//             this.username = username;
+//             this.dn = dn;
+//             this.password = password;
+//             if (roles == null) {
+//                 this.roles = Collections.emptyList();
+//             } else {
+//                 this.roles = Collections.unmodifiableList(roles);
+//             }
+//         }
+
+         public User(String username, String dn, String password, List<String> roles, String userRoleId) {
              this.username = username;
              this.dn = dn;
              this.password = password;
@@ -2249,6 +2672,7 @@ public class JNDIRealm extends RealmBase {
              } else {
                  this.roles = Collections.unmodifiableList(roles);
              }
+             this.userRoleId = userRoleId;
          }
     
          public String getUserName() {
@@ -2265,6 +2689,9 @@ public class JNDIRealm extends RealmBase {
          
          public List<String> getRoles() {
              return roles;
+         }
+         public String getUserRoleId() {
+             return userRoleId;
          }
      }
 }
