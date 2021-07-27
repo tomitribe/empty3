@@ -20,6 +20,8 @@ package org.apache.coyote.http11;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.StringTokenizer;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -52,6 +54,7 @@ import org.apache.tomcat.util.buf.HexUtils;
 import org.apache.tomcat.util.buf.MessageBytes;
 import org.apache.tomcat.util.http.FastHttpDateFormat;
 import org.apache.tomcat.util.http.MimeHeaders;
+import org.apache.tomcat.util.http.parser.TokenList;
 import org.apache.tomcat.util.net.AprEndpoint;
 import org.apache.tomcat.util.net.SendfileKeepAliveState;
 import org.apache.tomcat.util.net.SocketStatus;
@@ -1437,32 +1440,19 @@ public class Http11AprProcessor implements ActionHook {
         MessageBytes transferEncodingValueMB = null;
         if (http11)
             transferEncodingValueMB = headers.getValue("transfer-encoding");
+        
         if (transferEncodingValueMB != null) {
-            String transferEncodingValue = transferEncodingValueMB.toString();
-            // Parse the comma separated list. "identity" codings are ignored
-            int startPos = 0;
-            int commaPos = transferEncodingValue.indexOf(',');
-            String encodingName = null;
-            while (commaPos != -1) {
-                encodingName = transferEncodingValue.substring
-                    (startPos, commaPos).toLowerCase().trim();
-                if (!addInputFilter(inputFilters, encodingName)) {
-                    // Unsupported transfer encoding
-                    error = true;
-                    // 501 - Unimplemented
-                    response.setStatus(501);
+        	List<String> encodingNames = new ArrayList<String>();
+            if (TokenList.parseTokenList(headers.values("transfer-encoding"), encodingNames)) {
+                for (String encodingName : encodingNames) {
+                    // "identity" codings are ignored
+                    addInputFilter(inputFilters, encodingName);
                 }
-                startPos = commaPos + 1;
-                commaPos = transferEncodingValue.indexOf(',', startPos);
+            } else {
+                // Invalid transfer encoding
+                badRequest("http11processor.request.invalidTransferEncoding");
             }
-            encodingName = transferEncodingValue.substring(startPos)
-                .toLowerCase().trim();
-            if (!addInputFilter(inputFilters, encodingName)) {
-                // Unsupported transfer encoding
-                error = true;
-                // 501 - Unimplemented
-                response.setStatus(501);
-            }
+
         }
 
         // Parse content-length header
@@ -1514,7 +1504,13 @@ public class Http11AprProcessor implements ActionHook {
             adapter.log(request, response, 0);
         }
     }
-
+    
+    private void badRequest(String errorKey) {
+        response.setStatus(400);
+        if (log.isDebugEnabled()) {
+            log.debug(sm.getString(errorKey));
+        }
+    }
 
     /**
      * Parse host.

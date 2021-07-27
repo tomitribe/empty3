@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.InetAddress;
 import java.nio.channels.SelectionKey;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.StringTokenizer;
 import java.util.regex.Pattern;
@@ -47,6 +49,7 @@ import org.apache.tomcat.util.buf.HexUtils;
 import org.apache.tomcat.util.buf.MessageBytes;
 import org.apache.tomcat.util.http.FastHttpDateFormat;
 import org.apache.tomcat.util.http.MimeHeaders;
+import org.apache.tomcat.util.http.parser.TokenList;
 import org.apache.tomcat.util.net.NioChannel;
 import org.apache.tomcat.util.net.NioEndpoint;
 import org.apache.tomcat.util.net.SSLSupport;
@@ -1462,24 +1465,21 @@ public class Http11NioProcessor implements ActionHook {
         if (!http09) {
             transferEncodingValueMB = headers.getValue("transfer-encoding");
         }
+        
         if (transferEncodingValueMB != null) {
-            String transferEncodingValue = transferEncodingValueMB.toString();
-            // Parse the comma separated list. "identity" codings are ignored
-            int startPos = 0;
-            int commaPos = transferEncodingValue.indexOf(',');
-            String encodingName = null;
-            while (commaPos != -1) {
-                encodingName = transferEncodingValue.substring(
-                        startPos, commaPos).toLowerCase(Locale.ENGLISH).trim();
-                addInputFilter(inputFilters, encodingName);
-                startPos = commaPos + 1;
-                commaPos = transferEncodingValue.indexOf(',', startPos);
+        	List<String> encodingNames = new ArrayList<String>();
+            if (TokenList.parseTokenList(headers.values("transfer-encoding"), encodingNames)) {
+                for (String encodingName : encodingNames) {
+                    // "identity" codings are ignored
+                    addInputFilter(inputFilters, encodingName);
+                }
+            } else {
+                // Invalid transfer encoding
+                badRequest("http11processor.request.invalidTransferEncoding");
             }
-            encodingName = transferEncodingValue.substring(
-                    startPos).toLowerCase(Locale.ENGLISH).trim();
-            addInputFilter(inputFilters, encodingName);
-        }
 
+        }
+        
         // Parse content-length header
         long contentLength = request.getContentLengthLong();
         if (contentLength >= 0) {
@@ -1531,7 +1531,13 @@ public class Http11NioProcessor implements ActionHook {
         }
     }
 
-
+    private void badRequest(String errorKey) {
+        response.setStatus(400);
+        if (log.isDebugEnabled()) {
+            log.debug(sm.getString(errorKey));
+        }
+    }
+    
     /**
      * Parse host.
      */

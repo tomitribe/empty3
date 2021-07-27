@@ -17,6 +17,7 @@
 package org.apache.tomcat.util.http.parser;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.StringReader;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -324,7 +325,7 @@ public class HttpParser {
     }
 
     // Skip any LWS and return the next char
-    private static int skipLws(StringReader input, boolean withReset)
+    private static int skipLws(Reader input, boolean withReset)
             throws IOException {
 
         if (withReset) {
@@ -345,7 +346,7 @@ public class HttpParser {
         return c;
     }
 
-    private static SkipConstantResult skipConstant(StringReader input,
+    static SkipConstantResult skipConstant(Reader input,
             String constant) throws IOException {
         int len = constant.length();
 
@@ -371,7 +372,7 @@ public class HttpParser {
      *          available to read or <code>null</code> if data other than a
      *          token was found
      */
-    private static String readToken(StringReader input) throws IOException {
+    static String readToken(Reader input) throws IOException {
         StringBuilder result = new StringBuilder();
 
         int c = skipLws(input, false);
@@ -552,9 +553,23 @@ public class HttpParser {
         }
     }
 
-    private static enum SkipConstantResult {
+    static enum SkipConstantResult {
         FOUND,
         NOT_FOUND,
         EOF
+    }
+    /**
+     * Skips all characters until EOF or the specified target is found. Normally
+     * used to skip invalid input until the next separator.
+     */
+    static SkipConstantResult skipUntil(Reader input, int c, char target) throws IOException {
+        while (c != -1 && c != target) {
+            c = input.read();
+        }
+        if (c == -1) {
+            return SkipConstantResult.EOF;
+        } else {
+            return SkipConstantResult.FOUND;
+        }
     }
 }
