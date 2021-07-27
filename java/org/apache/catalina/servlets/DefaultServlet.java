@@ -404,6 +404,27 @@ public class DefaultServlet
     }
 
 
+    // Backport from 58b32048ce25cb812ae394dafb0cd57254c68155, adjusted to be 6.0.x compatible
+    @Override
+    protected void service(HttpServletRequest req, HttpServletResponse resp)
+            throws ServletException, IOException {
+
+
+        boolean isError = false;
+        Integer status =
+                (Integer) req.getAttribute("javax.servlet.error.status_code");
+        if (status != null) {
+            isError = status.intValue() >= HttpServletResponse.SC_BAD_REQUEST;
+        }
+
+        if (isError) {
+            doGet(req, resp);
+        } else {
+            super.service(req, resp);
+        }
+    }
+
+
     /**
      * Process a GET request for the specified resource.
      *
