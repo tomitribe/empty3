@@ -382,11 +382,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                     throw new EOFException(sm.getString("iib.eof.error"));
             }
 
-            // Spec says no CR or LF in method name
-            if (buf[pos] == Constants.CR || buf[pos] == Constants.LF) {
-                throw new IllegalArgumentException(
-                        sm.getString("iib.invalidmethod"));
-            }
+            // Spec says method name is a token followed by a single SP but
             // Spec says single SP but it also says be tolerant of HT
             if (buf[pos] == Constants.SP || buf[pos] == Constants.HT) {
                 space = true;
@@ -550,6 +546,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
      * @return false after reading a blank line (which indicates that the
      * HTTP header parsing is done
      */
+    @SuppressWarnings("null") // headerValue cannot be null
     private boolean parseHeader() throws IOException {
         while (true) {
 
@@ -605,6 +602,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                 // If a non-token header is detected, skip the line and
                 // ignore the header
                 skipLine(start);
+                return true;
             }
             chr = buf[pos];
             if ((chr >= Constants.A) && (chr <= Constants.Z)) {
