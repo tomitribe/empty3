@@ -1467,17 +1467,21 @@ public class Http11NioProcessor implements ActionHook {
         }
         
         if (transferEncodingValueMB != null) {
-        	List<String> encodingNames = new ArrayList<String>();
-            if (TokenList.parseTokenList(headers.values("transfer-encoding"), encodingNames)) {
-                for (String encodingName : encodingNames) {
-                    // "identity" codings are ignored
-                    addInputFilter(inputFilters, encodingName);
-                }
-            } else {
-                // Invalid transfer encoding
-                badRequest("http11processor.request.invalidTransferEncoding");
+            String transferEncodingValue = transferEncodingValueMB.toString();
+            // Parse the comma separated list. "identity" codings are ignored
+            int startPos = 0;
+            int commaPos = transferEncodingValue.indexOf(',');
+            String encodingName = null;
+            while (commaPos != -1) {
+                encodingName = transferEncodingValue.substring(
+                        startPos, commaPos).toLowerCase(Locale.ENGLISH).trim();
+                addInputFilter(inputFilters, encodingName);
+                startPos = commaPos + 1;
+                commaPos = transferEncodingValue.indexOf(',', startPos);
             }
-
+            encodingName = transferEncodingValue.substring(
+                    startPos).toLowerCase(Locale.ENGLISH).trim();
+            addInputFilter(inputFilters, encodingName);
         }
         
         // Parse content-length header

@@ -505,11 +505,8 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
                     if (!fill(true, false)) //request line parsing
                         return false;
                 }
-                // Spec says no CR or LF in method name
-                if (buf[pos] == Constants.CR || buf[pos] == Constants.LF) {
-                    throw new IllegalArgumentException(
-                            sm.getString("iib.invalidmethod"));
-                }
+                // Spec says method name is a token followed by a single SP but
+                // also be tolerant of multiple SP and/or HT.
                 if (buf[pos] == Constants.SP || buf[pos] == Constants.HT) {
                     space = true;
                     request.method().setBytes(buf, parsingRequestLineStart, pos - parsingRequestLineStart);
@@ -806,63 +803,67 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
                 }
             }
 
-            if (buf[pos] == Constants.COLON) {
-                headerParsePos = HeaderParsePosition.HEADER_VALUE;
-                headerData.headerValue = headers.addValue(buf, headerData.start, pos - headerData.start);
-            }
             chr = buf[pos];
-            if ((chr >= Constants.A) && (chr <= Constants.Z)) {
-                buf[pos] = (byte) (chr - Constants.LC_OFFSET);
-            }
-
-            pos++;
-            if ( headerParsePos == HeaderParsePosition.HEADER_VALUE ) { 
+            if (chr == Constants.COLON) {
+                headerParsePos = HeaderParsePosition.HEADER_VALUE_START;
+                headerData.headerValue = headers.addValue(buf, headerData.start, pos - headerData.start);
+                pos++;
                 // Mark the current buffer position
                 headerData.start = pos;
                 headerData.realPos = pos;
+                headerData.lastSignificantChar = pos;
+                break;
             } else if (!HttpParser.isToken(chr)) {
                 // If a non-token header is detected, skip the line and
                 // ignore the header
                 headerData.lastSignificantChar = pos;
+                return skipLine();
             }
-            
+
+            // chr is next byte of header name. Convert to lowercase.
+            if ((chr >= Constants.A) && (chr <= Constants.Z)) {
+                buf[pos] = (byte) (chr - Constants.LC_OFFSET);
+            }
+            pos++;
         }
 
-        
+        // Skip the line and ignore the header
+        if (headerParsePos == HeaderParsePosition.HEADER_SKIPLINE) {
+            return skipLine();
+        }
+
         //
         // Reading the header value (which can be spanned over multiple lines)
         //
 
-        boolean eol = false;
-
-        while (headerParsePos == HeaderParsePosition.HEADER_VALUE ||
+        while (headerParsePos == HeaderParsePosition.HEADER_VALUE_START ||
+               headerParsePos == HeaderParsePosition.HEADER_VALUE ||
                headerParsePos == HeaderParsePosition.HEADER_MULTI_LINE) {
-            if ( headerParsePos == HeaderParsePosition.HEADER_VALUE ) {
-            
-                boolean space = true;
 
+            if ( headerParsePos == HeaderParsePosition.HEADER_VALUE_START ) {
                 // Skipping spaces
-                while (space) {
-
+                while (true) {
                     // Read new bytes if needed
                     if (pos >= lastValid) {
-                        if (!fill(true,false)) {//parse header 
-                            //HEADER_VALUE, should already be set
+                        if (!fill(true,false)) {//parse header
+                            //HEADER_VALUE_START
                             return HeaderParseStatus.NEED_MORE_DATA;
                         }
                     }
 
-                    if ((buf[pos] == Constants.SP) || (buf[pos] == Constants.HT)) {
+                    chr = buf[pos];
+                    if (chr == Constants.SP || chr == Constants.HT) {
                         pos++;
                     } else {
-                        space = false;
+                        headerParsePos = HeaderParsePosition.HEADER_VALUE;
+                        break;
                     }
-
                 }
-
-                headerData.lastSignificantChar = headerData.realPos;
+            }
+            if ( headerParsePos == HeaderParsePosition.HEADER_VALUE ) {
 
                 // Reading bytes until the end of the line
+                boolean eol = false;
                 while (!eol) {
 
                     // Read new bytes if needed
@@ -871,7 +872,6 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
                             //HEADER_VALUE
                             return HeaderParseStatus.NEED_MORE_DATA;
                         }
-
                     }
 
                     prevChr = chr;
@@ -895,15 +895,15 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
                         buf[headerData.realPos] = chr;
                         headerData.realPos++;
                     } else {
-                        buf[headerData.realPos] = buf[pos];
+                        buf[headerData.realPos] = chr;
                         headerData.realPos++;
                         headerData.lastSignificantChar = headerData.realPos;
                     }
 
                     pos++;
-
                 }
 
+                // Ignore whitespaces at the end of the line
                 headerData.realPos = headerData.lastSignificantChar;
 
                 // Checking the first character of the new line. If the character
@@ -923,22 +923,23 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
             if ( headerParsePos == HeaderParsePosition.HEADER_MULTI_LINE ) {
             	if (peek != Constants.SP && peek != Constants.HT) {
                     headerParsePos = HeaderParsePosition.HEADER_START;
+                    break;
                 } else {
-                    eol = false;
                     // Copying one extra space in the buffer (since there must
                     // be at least one space inserted between the lines)
                     buf[headerData.realPos] = peek;
                     headerData.realPos++;
-                    headerParsePos = HeaderParsePosition.HEADER_VALUE;
+                    headerParsePos = HeaderParsePosition.HEADER_VALUE_START;
                 }
             }
         }
         // Set the header value
-        headerData.headerValue.setBytes(buf, headerData.start, headerData.realPos - headerData.start);
+        headerData.headerValue.setBytes(buf, headerData.start,
+                headerData.lastSignificantChar - headerData.start);
         headerData.recycle();
         return HeaderParseStatus.HAVE_MORE_HEADERS;
     }
-    
+
     private HeaderParseStatus skipLine() throws IOException {
         headerParsePos = HeaderParsePosition.HEADER_SKIPLINE;
         boolean eol = false;

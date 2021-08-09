@@ -435,6 +435,7 @@ public abstract class SimpleHttpClient {
     }
 
     public boolean isResponse400() {
+    	System.out.println(getResponseLine());
         return responseLineStartsWith(FAIL_400);
     }
 
