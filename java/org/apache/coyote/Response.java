@@ -200,6 +200,10 @@ public final class Response {
      * Set the response status
      */
     public void setStatus( int status ) {
+    	if (status >= 400) {
+    	    System.out.println("Setting response status to " + status + " at:");
+    	    new Throwable().printStackTrace();
+    	}
         this.status = status;
     }
 

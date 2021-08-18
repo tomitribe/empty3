@@ -964,6 +964,7 @@ public class Http11NioProcessor implements ActionHook {
             }
             
             rp.setStage(org.apache.coyote.Constants.STAGE_KEEPALIVE);
+            inputBuffer.recycle();
             
             if (breakKeepAliveLoop(socket)) {
                 break;

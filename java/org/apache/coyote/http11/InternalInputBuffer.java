@@ -264,6 +264,8 @@ public class InternalInputBuffer extends AbstractInputBuffer {
      * connection.
      */
     public void recycle() {
+    	
+    	log.info("recycle()");
 
         // Recycle Request object
         request.recycle();
@@ -293,11 +295,14 @@ public class InternalInputBuffer extends AbstractInputBuffer {
      */
     public void nextRequest() {
 
+    	log.info("nextRequest()");
         // Recycle Request object
         request.recycle();
 
         // Copy leftover bytes to the beginning of the buffer
         if (lastValid - pos > 0 && pos > 0) {
+        	
+        	log.info("nextRequest - copied " + (lastValid - pos) + " bytes to next request");
             System.arraycopy(buf, pos, buf, 0, lastValid - pos);
         }
 
@@ -324,9 +329,14 @@ public class InternalInputBuffer extends AbstractInputBuffer {
     public void endRequest()
         throws IOException {
 
+    	log.info("endRequest()");
+    	
         if (swallowInput && (lastActiveFilter != -1)) {
             int extraBytes = (int) activeFilters[lastActiveFilter].end();
             pos = pos - extraBytes;
+            
+            
+            log.info("endRequest - extraBytes=" + extraBytes + ", pos=" + pos);
         }
 
     }

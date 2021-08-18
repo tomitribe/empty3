@@ -961,6 +961,7 @@ public class Http11AprProcessor implements ActionHook {
             }
             
             rp.setStage(org.apache.coyote.Constants.STAGE_KEEPALIVE);
+            inputBuffer.recycle();
 
         }
 

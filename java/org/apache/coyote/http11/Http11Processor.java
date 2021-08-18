@@ -933,17 +933,19 @@ public class Http11Processor implements ActionHook {
 
             rp.setStage(org.apache.coyote.Constants.STAGE_KEEPALIVE);
 
+            // Recycle
+            inputBuffer.recycle();
+            
             // Don't reset the param - we'll see it as ended. Next request
             // will reset it
             // thrA.setParam(null);
             // Next request
             inputBuffer.nextRequest();
             outputBuffer.nextRequest();
-
+          
         }
 
         rp.setStage(org.apache.coyote.Constants.STAGE_ENDED);
-
         // Recycle
         inputBuffer.recycle();
         outputBuffer.recycle();
@@ -1320,6 +1322,7 @@ public class Http11Processor implements ActionHook {
             } else {
                 // Invalid transfer encoding
                 badRequest("http11processor.request.invalidTransferEncoding");
+                error = true;
             }
 
         }
@@ -1712,6 +1715,7 @@ public class Http11Processor implements ActionHook {
             // encoding.
             // 400 - Bad request
             response.setStatus(400);
+            error = true;
 
             /**
              * PENDING MIGRATE
