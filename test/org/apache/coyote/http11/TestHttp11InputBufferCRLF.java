@@ -104,6 +104,9 @@ public class TestHttp11InputBufferCRLF extends TomcatBaseTest {
         Client client = new Client(request, isHttp09);
 
         client.doRequest();
+        String responseBody = client.getResponseBody();
+        
+		System.out.println(responseBody == null ? "null" : responseBody);
         Assert.assertTrue(client.isResponseBodyOK());
     }
 
@@ -125,7 +128,9 @@ public class TestHttp11InputBufferCRLF extends TomcatBaseTest {
 
             try {
                 tomcat.start();
-                setPort(tomcat.getConnector().getPort());
+                int localPort = tomcat.getLocalPort();
+                System.out.println("Setting local port: " + localPort);
+				setPort(localPort);
                 setRequestPause(20);
 
                 // Open connection
