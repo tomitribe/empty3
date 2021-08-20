@@ -49,7 +49,7 @@ public class TestHttp11Processor extends TomcatBaseTest {
                         SimpleHttpClient.CRLF +
                         "test=data";
 
-        Client client = new Client(tomcat.getConnector().getPort());
+        Client client = new Client(tomcat.getLocalPort());
         client.setRequest(new String[] {request});
 
         client.connect();
@@ -121,7 +121,7 @@ public class TestHttp11Processor extends TomcatBaseTest {
                         "Transfer-Encoding: " + headerValue + SimpleHttpClient.CRLF +
                         SimpleHttpClient.CRLF;
 
-        Client client = new Client(tomcat.getConnector().getPort());
+        Client client = new Client(tomcat.getLocalPort());
         client.setRequest(new String[] {request});
 
         client.connect();
@@ -183,7 +183,7 @@ public class TestHttp11Processor extends TomcatBaseTest {
                         SimpleHttpClient.CRLF +
                         "test=data";
 
-        Client client = new Client(tomcat.getConnector().getPort());
+        Client client = new Client(tomcat.getLocalPort());
         client.setRequest(new String[] {request});
 
         client.connect();
