@@ -1496,6 +1496,7 @@ public class Http11NioProcessor implements ActionHook {
                 // so remove it.
                 headers.removeHeader("content-length");
                 request.setContentLength(-1);
+                keepAlive = false;
             } else {
                 inputBuffer.addActiveFilter
                         (inputFilters[Constants.IDENTITY_FILTER]);
