@@ -904,6 +904,7 @@ public class Http11Processor implements ActionHook {
                 // if the servlet has rejected it.
                 if(error)
                     inputBuffer.setSwallowInput(false);
+                
                 inputBuffer.endRequest();
             } catch (IOException e) {
                 error = true;
@@ -934,7 +935,7 @@ public class Http11Processor implements ActionHook {
             rp.setStage(org.apache.coyote.Constants.STAGE_KEEPALIVE);
 
             // Recycle
-            inputBuffer.recycle();
+//            inputBuffer.recycle();
             
             // Don't reset the param - we'll see it as ended. Next request
             // will reset it
@@ -1339,6 +1340,7 @@ public class Http11Processor implements ActionHook {
                 // so remove it.
                 headers.removeHeader("content-length");
                 request.setContentLength(-1);
+                keepAlive = false;
             } else {
                 inputBuffer.addActiveFilter
                         (inputFilters[Constants.IDENTITY_FILTER]);
