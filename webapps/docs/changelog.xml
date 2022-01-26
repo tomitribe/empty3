@@ -111,6 +111,10 @@
       <add>
         Improve validation of storage location when using FileStore. (markt)
       </add>
+      <fix>
+        Make the calculation of the session storage location more robust when
+        using file based persistent storage. (markt)
+      </fix>
     </changelog>
   </subsection>
 </section>
