@@ -259,6 +259,10 @@
         Add additional checks for valid characters to the HTTP request line
         parsing so invalid request lines are rejected sooner. (markt)
       </add>
+      <fix>
+        Make the calculation of the session storage location more robust when
+        using file based persistent storage. (markt)
+      </fix>
     </changelog>
   </subsection>
   <subsection name="Web applications">
