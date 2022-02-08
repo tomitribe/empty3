@@ -27,7 +27,7 @@ version.major=6
 version.minor=0
 version.build=53
 version.patch=0
-version.suffix=-SP.7
+version.suffix=-SP.8
 #version=6.0.53
 
 # ----- Build control flags -----
