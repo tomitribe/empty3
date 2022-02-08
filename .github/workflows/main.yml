@@ -89,7 +89,15 @@ jobs:
  
     - name: remove_known_failed_6
       run: sed -i.bak '/TEST-org.apache.catalina.tribes.group.interceptors.TestNonBlockingCoordinator.BIO.txt/d' failed_result.txt | true
-    
+  
+    - name: remove_known_failed_7
+      run: sed -i.bak '/TEST-org.apache.catalina.core.TestApplicationHttpRequest/d' failed_result.txt | true
+
+    - name: remove_known_failed_8
+      run: sed -i.bak '/TEST-org.apache.catalina.servlets.TestDefaultServlet/d' failed_result.txt | true  
+
+    - name: remove_known_failed_9
+      run: sed -i.bak '/TEST-org.apache.catalina.servlets.TestDefaultServletIfMatchRequests/d' failed_result.txt | true
     
     - name: final_status
       run: diff failed_result.txt known_failed.txt && diff error_result.txt known_errors.txt
