@@ -409,7 +409,7 @@ public final class FileStore extends StoreBase {
         File canonicalFile = file.getCanonicalFile();
 
         // Check the file is within the storage directory
-        if (!canonicalFile.toPath().startsWith(storageDir.getCanonicalFile().toPath())) {
+        if (!canonicalFile.getPath().startsWith(storageDir.getCanonicalFile().getPath())) {
             log.warn(sm.getString("fileStore.invalid", file.getPath(), id));
             return null;
         }
