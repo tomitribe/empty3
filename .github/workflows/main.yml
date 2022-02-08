@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - tomcat-6.0.44-TT
   pull_request:
     branches:
       - master
+      - tomcat-6.0.44-TT
   workflow_dispatch:
 
 jobs:
