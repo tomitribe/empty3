@@ -741,7 +741,7 @@ public class Http11NioProtocol extends AbstractProtocol implements MBeanRegistra
 
 
         public SocketState event(NioChannel socket, SocketStatus status) {
-            Http11NioProcessor result = connections.get(socket);
+            Http11NioProcessor result = connections.remove(socket);
 
             SocketState state = SocketState.CLOSED;
             if (result != null) {
@@ -780,6 +780,7 @@ public class Http11NioProtocol extends AbstractProtocol implements MBeanRegistra
                         //add correct poller events here based on Comet stuff
                         NioEndpoint.KeyAttachment att = (NioEndpoint.KeyAttachment)socket.getAttachment(false);
                         socket.getPoller().add(socket,att.getCometOps());
+                        connections.put(socket, result);
                     }
                 }
             }

@@ -616,7 +616,7 @@ public class Http11AprProtocol extends AbstractProtocol
         }
 
         public SocketState event(long socket, SocketStatus status) {
-            Http11AprProcessor result = connections.get(socket);
+            Http11AprProcessor result = connections.remove(socket);
             
             SocketState state = SocketState.CLOSED; 
             if (result != null) {
@@ -652,6 +652,7 @@ public class Http11AprProtocol extends AbstractProtocol
                         }
                     } else {
                         proto.endpoint.getCometPoller().add(socket);
+                        connections.put(socket, result);
                     }
                 }
             }
