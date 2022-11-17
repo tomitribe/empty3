@@ -602,7 +602,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
             } else if (!HttpParser.isToken(buf[pos])) {
                 // If a non-token header is detected, skip the line and
                 // ignore the header
-                skipLine(start);
+                skipLine(start,false);
                 return true;
             }
             chr = buf[pos];
@@ -665,15 +665,11 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                     eol = true;
                 } else if (prevChr == Constants.CR) {
                     // Invalid value
-                    // Delete the header (it will be the most recent one)
-                    headers.removeHeader(headers.size() - 1);
-                    skipLine(start);
+                    skipLine(start,true);
                     return true;
                 } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
                     // Invalid value
-                    // Delete the header (it will be the most recent one)
-                    headers.removeHeader(headers.size() - 1);
-                    skipLine(start);
+                    skipLine(start,true);
                     return true;
                 } else if (chr == Constants.SP) {
                     buf[realPos] = chr;
@@ -738,14 +734,36 @@ public class InternalInputBuffer extends AbstractInputBuffer {
 
     // ------------------------------------------------------ Protected Methods
 
-    private void skipLine(int start) throws IOException {
+    private void skipLine(int start, boolean deleteHeader) throws IOException {
+
+
+
         boolean eol = false;
         int lastRealByte = start;
         if (pos - 1 > start) {
             lastRealByte = pos - 1;
         }
 
-        
+        boolean rejectThisHeader = this.rejectIllegalHeader;
+        // Check if rejectIllegalHeader is disabled and needs to be overridden
+        // for this header. The header name is required to determine if this
+        // override is required. The header name is only available once the
+        // header has been created. If the header has been created then
+        // deleteHeader will be true.
+
+
+        if (!rejectThisHeader && deleteHeader) {
+            if ( String.valueOf(headers.getName(headers.size() - 1)).equalsIgnoreCase("content-length")) {
+                // Malformed content-length headers must always be rejected
+                // RFC 9112, section 6.3, bullet 5.
+                rejectThisHeader = true;
+            } else {
+                // Only need to delete the header if the request isn't going to
+                // be rejected (it will be the most recent one)
+                headers.removeHeader(headers.size() - 1);
+            }
+        }
+
         while (!eol) {
 
             // Read new bytes if needed
@@ -767,11 +785,11 @@ public class InternalInputBuffer extends AbstractInputBuffer {
             pos++;
         }
 
-        if (rejectIllegalHeader || log.isDebugEnabled()) {
+        if (rejectThisHeader || log.isDebugEnabled()) {
             String message = sm.getString("iib.invalidheader", new String(buf, start,
                     lastRealByte - start + 1, "ISO-8859-1"));
             
-            if (rejectIllegalHeader) {
+            if (rejectThisHeader) {
             	throw new IllegalArgumentException(message);
             }
             
