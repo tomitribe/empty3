@@ -812,7 +812,7 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
                 // If a non-token header is detected, skip the line and
                 // ignore the header
                 headerData.lastSignificantChar = pos;
-                return skipLine();
+                return skipLine(false);
             }
 
             // chr is next byte of header name. Convert to lowercase.
@@ -824,7 +824,7 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
 
         // Skip the line and ignore the header
         if (headerParsePos == HeaderParsePosition.HEADER_SKIPLINE) {
-            return skipLine();
+            return skipLine(false);
         }
 
         //
@@ -878,14 +878,10 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
                         eol = true;
                     } else if (prevChr == Constants.CR) {
                         // Invalid value
-                        // Delete the header (it will be the most recent one)
-                        headers.removeHeader(headers.size() - 1);
-                        return skipLine();
+                        return skipLine(true);
                     } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
                         // Invalid value
-                        // Delete the header (it will be the most recent one)
-                        headers.removeHeader(headers.size() - 1);
-                        return skipLine();
+                        return skipLine(true);
                     } else if (chr == Constants.SP || chr == Constants.HT) {
                         buf[headerData.realPos] = chr;
                         headerData.realPos++;
@@ -935,7 +931,27 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
         return HeaderParseStatus.HAVE_MORE_HEADERS;
     }
 
-    private HeaderParseStatus skipLine() throws IOException {
+    private HeaderParseStatus skipLine(boolean deleteHeader) throws IOException {
+        boolean rejectThisHeader = rejectIllegalHeader;
+        // Check if rejectIllegalHeader is disabled and needs to be overridden
+        // for this header. The header name is required to determine if this
+        // override is required. The header name is only available once the
+        // header has been created. If the header has been created then
+        // deleteHeader will be true.
+        if (!rejectThisHeader && deleteHeader) {
+            if ( String.valueOf(headers.getName(headers.size() - 1)).equalsIgnoreCase("content-length")) {
+                // Malformed content-length headers must always be rejected
+                // RFC 9112, section 6.3, bullet 5.
+                rejectThisHeader = true;
+            } else {
+                // Only need to delete the header if the request isn't going to
+                // be rejected (it will be the most recent one)
+                headers.removeHeader(headers.size() - 1);
+            }
+        }
+
+        // Parse the rest of the invalid header so we can construct a useful
+        // exception and/or debug message.
         headerParsePos = HeaderParsePosition.HEADER_SKIPLINE;
         boolean eol = false;
 
@@ -962,13 +978,13 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
 
             pos++;
         }
-        if (rejectIllegalHeader || log.isDebugEnabled()) {
+        if (rejectThisHeader || log.isDebugEnabled()) {
             String message = sm.getString("iib.invalidheader", new String(buf,
                     headerData.start,
                     headerData.lastSignificantChar - headerData.start + 1,
                     "ISO-8859-1"));
             
-            if (rejectIllegalHeader) {
+            if (rejectThisHeader) {
             	throw new IllegalArgumentException(message);
             }
             
