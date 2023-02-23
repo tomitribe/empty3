@@ -179,6 +179,7 @@ public final class HTMLManagerServlet extends ManagerServlet {
         File tempdir = (File) getServletContext().getAttribute
             ("javax.servlet.context.tempdir");
         // Set upload parameters
+        upload.setFileCountMax(1);
         upload.setSizeMax(-1);
         upload.setRepositoryPath(tempdir.getCanonicalPath());
     
