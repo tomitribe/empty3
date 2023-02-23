@@ -142,6 +142,13 @@ public abstract class FileUploadBase
      * no maximum.
      */
     private long sizeMax = -1;
+    
+    /**
+     * The maximum permitted number of files that may be uploaded in a single
+     * request. A value of -1 indicates no maximum.
+     */
+    private long fileCountMax = -1;
+
 
 
     /**
@@ -195,7 +202,24 @@ public abstract class FileUploadBase
     {
         this.sizeMax = sizeMax;
     }
+    
+    /**
+     * Returns the maximum number of files allowed in a single request.
+     *
+     * @return The maximum number of files allowed in a single request.
+     */
+    public long getFileCountMax() {
+        return fileCountMax;
+    }
 
+    /**
+     * Sets the maximum number of files allowed per request/
+     *
+     * @param fileCountMax The new limit. {@code -1} means no limit.
+     */
+    public void setFileCountMax(long fileCountMax) {
+        this.fileCountMax = fileCountMax;
+    }
 
     /**
      * Retrieves the character encoding used when reading the headers of an
@@ -295,6 +319,11 @@ public abstract class FileUploadBase
             boolean nextPart = multi.skipPreamble();
             while (nextPart)
             {
+                if (items.size() == fileCountMax) {
+                    // The next item will exceed the limit.
+                    throw new FileCountLimitExceededException(ATTACHMENT, getFileCountMax());
+                }
+            	
                 Map headers = parseHeaders(multi.readHeaders());
                 String fieldName = getFieldName(headers);
                 if (fieldName != null)
