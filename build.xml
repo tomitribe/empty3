@@ -855,8 +855,7 @@
         errorproperty="test.result.error"
         failureproperty="test.result.failure"
         haltonfailure="${test.haltonfailure}"
-        jvm="${java.bin.path}java"
-        threads="${test.threads}">
+        jvm="${java.bin.path}java">
 
         <!--        To enable remote debug for individual test-->
         <!--        <jvmarg value="-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=9009"/>-->
@@ -1130,7 +1129,6 @@
              debug="${compile.debug}" deprecation="${compile.deprecation}"
              source="${compile.source}"
              target="${compile.target}"
-             release="${compile.release}"
              classpath="${tomcat.classes}"
              encoding="ISO-8859-1"
              includeantruntime="false">
@@ -1142,7 +1140,6 @@
              debug="${compile.debug}" deprecation="${compile.deprecation}"
              source="${compile.source}"
              target="${compile.target}"
-             release="${compile.release}"
              classpath="${tomcat.classes}"
              encoding="ISO-8859-1"
              includeantruntime="false">
