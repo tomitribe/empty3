@@ -856,8 +856,7 @@
         errorproperty="test.result.error"
         failureproperty="test.result.failure"
         haltonfailure="${test.haltonfailure}"
-        jvm="${java.bin.path}java"
-        threads="${test.threads}">
+        jvm="${java.bin.path}java">
 
         <jvmarg value="${test.jvmarg.egd}"/>
         <jvmarg value="-Djava.library.path=${test.apr.loc}"/>
@@ -1129,7 +1128,6 @@
              debug="${compile.debug}" deprecation="${compile.deprecation}"
              source="${compile.source}"
              target="${compile.target}"
-             release="${compile.release}"
              classpath="${tomcat.classes}"
              encoding="ISO-8859-1"
              includeantruntime="false">
@@ -1141,7 +1139,6 @@
              debug="${compile.debug}" deprecation="${compile.deprecation}"
              source="${compile.source}"
              target="${compile.target}"
-             release="${compile.release}"
              classpath="${tomcat.classes}"
              encoding="ISO-8859-1"
              includeantruntime="false">
