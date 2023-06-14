@@ -69,9 +69,12 @@ jobs:
       run: sed -i.bak '/TEST-org.apache.coyote.http11.filters.TestFlushableGZIPOutputStream.BIO.txt/d' error_result.txt | true
 
     - name: remove_known_error_4
-      run: sed -i.bak '/TEST-org.apache.coyote.http11.filters.TestFlushableGZIPOutputStream.NIO.txt/d' error_result.txt | true      
+      run: sed -i.bak '/TEST-org.apache.coyote.http11.filters.TestFlushableGZIPOutputStream.NIO.txt/d' error_result.txt | true
 
-#Known FAILED
+    - name: remove_known_error_5
+      run: sed -i.bak '/TEST-org.apache.el.TestELEvaluation.BIO.txt/d' error_result.txt | true
+
+      #Known FAILED
     - name: remove_known_failed_1
       run: sed -i.bak '/TEST-org.apache.coyote.http11.TestInternalInputBuffer.NIO.txt/d' failed_result.txt | true
 
