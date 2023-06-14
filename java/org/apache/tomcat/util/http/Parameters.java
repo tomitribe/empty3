@@ -240,9 +240,9 @@ public final class Parameters {
         int end = start + len;
 
         while(pos < end) {
-            parameterCount ++;
 
-            if (limit > -1 && parameterCount > limit) {
+
+            if (limit > -1 && parameterCount >= limit) {
                 parseFailed = true;
                 UserDataHelper.Mode logMode = maxParamCountLog.getNextMode();
                 if (logMode != null) {
@@ -262,6 +262,9 @@ public final class Parameters {
                 }
                 break;
             }
+
+            parameterCount ++;
+
             int nameStart = pos;
             int nameEnd = -1;
             int valueStart = -1;
