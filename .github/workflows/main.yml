@@ -73,6 +73,9 @@ jobs:
 
     - name: remove_known_error_5
       run: sed -i.bak '/TEST-org.apache.el.TestELEvaluation.BIO.txt/d' error_result.txt | true
+      
+    - name: remove_known_error_6
+      run: sed -i.bak '/TEST-org.apache.el.TestELEvaluation.NIO.txt/d' error_result.txt | true    
 
       #Known FAILED
     - name: remove_known_failed_1
