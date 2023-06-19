@@ -78,15 +78,21 @@ compile.target=1.5
 compile.debug=true
 
 base-apache.loc.1=http://www.apache.org/dyn/closer.lua?action=download&filename=
-base-apache.loc.2=http://archive.apache.org/dist
+base-apache.loc.2=https://archive.apache.org/dist
 base-commons.loc.1=${base-apache.loc.1}/commons
 base-commons.loc.2=${base-apache.loc.2}/commons
 base-tomcat.loc.1=${base-apache.loc.1}/tomcat
 base-tomcat.loc.2=${base-apache.loc.2}/tomcat
 
-base-sf.loc=http://downloads.sourceforge.net
+base-sf.loc=https://downloads.sourceforge.net
 # repo.maven.apache.org is the same as repo2.maven.org
 base-maven.loc=https://repo.maven.apache.org/maven2
+
+# Mirror, was used when there were problems with the main SF downloads site
+# base-sf.loc=https://sunet.dl.sourceforge.net
+
+# checkstyle-backport-jre6
+base-checkstyle.loc=https://rnveach.github.io/checkstyle-backport-jre6/maven2
 
 # ----- Commons Logging, version 1.1 or later -----
 # If this version is updated, check the versions required for the deps
