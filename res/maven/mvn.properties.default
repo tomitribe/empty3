@@ -48,7 +48,7 @@ tomcat.extras.path=../../output/extras
 tomcat.extras.src.path=../../output/extras-src-jars
 
 #Where do we find the POM files
-tomcat.pom.path=../../res/maven2
+tomcat.pom.path=../../res/maven
 
 # ----- Default Base Path for Dependent Packages -----
 # Please note this path must be absolute, not relative,
