@@ -52,6 +52,9 @@
       <fix>
         Encode the output of the SSI <code>printenv</code> command. (markt)
       </fix>
+      <fix>
+        Avoid protocol relative redirects in FORM authentication. (markt)
+      </fix>
       <scode>
         Use constants for SSI encoding values. (markt)
       </scode>
@@ -361,7 +364,7 @@
       </fix>
       <fix>
         <bug>56780</bug>: Enable Tomcat to start when using SSL with an IBM JRE
-        in strict SP800-131a mode. (markt/kkolinko) 
+        in strict SP800-131a mode. (markt/kkolinko)
       </fix>
       <fix>
         <bug>57102</bug>: Fix bug that meant sslEnabledProtocols setting was not
@@ -566,7 +569,7 @@
       </fix>
       <fix>
         Change the default value of the <code>xmlBlockExternal</code> attribute
-        of Context elements. It is now <code>true</code>. (kkolinko) 
+        of Context elements. It is now <code>true</code>. (kkolinko)
       </fix>
       <fix>
         Don&apos;t log to standard out in SSLValve. (kkolinko/markt)
@@ -646,7 +649,7 @@
     <changelog>
       <fix>
         Change the default behaviour of JspC to block XML external entities by
-        default. (kkolinko) 
+        default. (kkolinko)
       </fix>
       <fix>
         Restore the validateXml option to Jasper that was previously renamed
@@ -814,7 +817,7 @@
       <fix>
         Ensure that when Tomcat&apos;s anti-resource locking features are used
         that the temporary copy of the web application and not the original is
-        removed when the web application stops. (markt/kkolinko) 
+        removed when the web application stops. (markt/kkolinko)
       </fix>
       <fix>
         <bug>55019</bug>: Fix a potential exception when accessing JSPs while
@@ -843,7 +846,7 @@
         Correctly associate the default resource bundle with the English locale
         so that requests that specify an Accept-Language of English ahead of
         French, Spanish or Japanese get the English messages they asked for.
-        (markt) 
+        (markt)
       </fix>
       <fix>
         Add missing JavaEE 5 XML schema definitions. (markt)
@@ -1020,7 +1023,7 @@
       <fix>
         <bug>54044</bug>: Correct bug in timestamp cache used by logging
         (including the access log valve) that meant entries could be made with
-        an earlier timestamp than the true timestamp. (markt) 
+        an earlier timestamp than the true timestamp. (markt)
       </fix>
       <fix>
         Fix CVE-2013-2067:
@@ -1138,7 +1141,7 @@
       <update>
         <bug>54601</bug>: Change catalina.sh to consistently use LOGGING_MANAGER
           variable to configure logging, instead of modifying JAVA_OPTS one.
-          (kkolinko) 
+          (kkolinko)
       </update>
       <update>
         <bug>54890</bug>: Update to Apache Commons Daemon 1.0.15. (mturk)
@@ -1532,7 +1535,7 @@
       </update>
       <update>
         Update the native component of the APR/native connectors to 1.1.23
-        and take advantage of the simplified distribution. (kkolinko) 
+        and take advantage of the simplified distribution. (kkolinko)
       </update>
       <fix>
         When building a Windows installer do not copy whole "res" folder to
@@ -1598,7 +1601,7 @@
         (kkolinko)
       </fix>
       <add>
-        <bug>51862</bug>: Added a <code>classesToInitialize</code> attribute to 
+        <bug>51862</bug>: Added a <code>classesToInitialize</code> attribute to
         <code>JreMemoryLeakPreventionListener</code> to allow pre-loading of configurable
         classes to avoid some classloader leaks. (slaurent)
       </add>
@@ -1705,7 +1708,7 @@
       </fix>
       <fix>
         Allow the BIO HTTP connector to be used with SSL when running under Java
-        7. (markt) 
+        7. (markt)
       </fix>
       <fix>
         Improve multi-byte character handling in all connectors. (rjung)
@@ -1727,7 +1730,7 @@
   <subsection name="Cluster">
     <changelog>
       <add>
-        <bug>51736</bug>: Make rpcTimeout configurable in BackupManager. 
+        <bug>51736</bug>: Make rpcTimeout configurable in BackupManager.
         (kfujino)
       </add>
       <add>
@@ -1736,9 +1739,9 @@
         regular expression applied to the attribute name. (rjung)
       </add>
       <fix>
-        Avoid an unnecessary session ID change notice. 
-        Notice of changed session ID by JvmRouteBinderValve is unnecessary to 
-        BackupManager. In BackupManager, change of session ID is replicated by 
+        Avoid an unnecessary session ID change notice.
+        Notice of changed session ID by JvmRouteBinderValve is unnecessary to
+        BackupManager. In BackupManager, change of session ID is replicated by
         the call of a setId() method. (kfujino)
       </fix>
       <fix>
@@ -1746,8 +1749,8 @@
         <code>DeltaSession.setId(String)</code>. (kkolinko)
       </fix>
       <add>
-        When Context manager does not exist, no context manager message is 
-        replied in order to avoid timeout (default 60 sec) of 
+        When Context manager does not exist, no context manager message is
+        replied in order to avoid timeout (default 60 sec) of
         GET_ALL_SESSIONS sync phase. (kfujino)
       </add>
     </changelog>
@@ -1808,7 +1811,7 @@
       <fix>
         <bug>28852</bug>: Add URL encoding where missing to parameters in URLs
         presented by Ant tasks to the Manager application. Based on a patch by
-        Stephane Bailliez. (markt) 
+        Stephane Bailliez. (markt)
       </fix>
       <add>
         <bug>46252</bug>: Allow to specify character set to be used to write
@@ -1863,7 +1866,7 @@
       </fix>
       <add>
         <bug>51119</bug>: Add JAAS authentication support to the
-        JMXRemoteLifecycleListener. Patch provided by Neil Laurance. (markt) 
+        JMXRemoteLifecycleListener. Patch provided by Neil Laurance. (markt)
       </add>
       <update>
         Implement display of multiple request headers in AccessLogValve:
@@ -1953,7 +1956,7 @@
     <changelog>
       <fix>
         Reduce level of log message for invalid URL parameters from WARNING to
-        INFO. (kkolinko) 
+        INFO. (kkolinko)
       </fix>
       <add>
         <bug>48208</bug>: Provide an option to specify a custom trust manager
@@ -1966,7 +1969,7 @@
       </fix>
       <fix>
         <bug>49929</bug>: Make sure flush packet is not send after END_RESPONSE
-        packet. (mturk/markt) 
+        packet. (mturk/markt)
       </fix>
       <add>
         <bug>50887</bug>: Enable the provider to be configured when generating
@@ -1984,7 +1987,7 @@
       </fix>
       <fix>
         Prevent NPEs when a socket is closed in non-error conditions after
-        sendfile processing when using the HTTP NIO connector. (markt) 
+        sendfile processing when using the HTTP NIO connector. (markt)
       </fix>
       <fix>
         <bug>51515</bug>: Prevent immediate socket close when comet is used over
@@ -2050,8 +2053,8 @@
         (markt)
       </fix>
       <fix>
-        <bug>50771</bug>: Ensure HttpServletRequest#getAuthType() returns the 
-        name of the authentication scheme if request has already been 
+        <bug>50771</bug>: Ensure HttpServletRequest#getAuthType() returns the
+        name of the authentication scheme if request has already been
         authenticated. (kfujino)
       </fix>
       <fix>
@@ -2059,12 +2062,12 @@
         authenticated session when running with a security manager. (markt)
       </fix>
       <fix>
-        <bug>51306</bug>: Avoid NPE when handleSESSION_EXPIRED is processed 
+        <bug>51306</bug>: Avoid NPE when handleSESSION_EXPIRED is processed
         while handleSESSION_CREATED is being processed. (kfujino)
       </fix>
       <fix>
-        The change in session ID is notified to the container event listener on 
-        the backup node in cluster. This notification is controlled by 
+        The change in session ID is notified to the container event listener on
+        the backup node in cluster. This notification is controlled by
         notifyContainerListenersOnReplication. (kfujino)
       </fix>
     </changelog>
@@ -2151,7 +2154,7 @@
       <fix>
         <bug>50854</bug>: Add additional entries to the default catalina.policy
         file to support running the manager web application from CATALINA_HOME
-        or CATALINA_BASE. (markt) 
+        or CATALINA_BASE. (markt)
       </fix>
       <fix>
         Update default download sources to use the central Apache Maven 2
@@ -2256,7 +2259,7 @@
       </fix>
       <add>
         Provide session creation and destruction rate metrics in the session
-        managers. (markt) 
+        managers. (markt)
       </add>
       <fix>
         <bug>50606</bug>: Improve CGIServlet: Provide support for specifying
@@ -2342,7 +2345,7 @@
         Patch provided by Sylvain Laurent. (kkolinko)
       </add>
       <add>
-        <bug>48973</bug>: Avoid creating a SESSIONS.ser file when stopping an 
+        <bug>48973</bug>: Avoid creating a SESSIONS.ser file when stopping an
         application if there's no session. Patch provided by Marc Guillemot.
         (slaurent)
       </add>
@@ -2437,7 +2440,7 @@
       <add>
         <bug>50222</bug>: Modify memory leak prevention code so it pins the
         system class loader in memory rather than than the common class loader,
-        which is better for embedded systems. (schultz) 
+        which is better for embedded systems. (schultz)
       </add>
       <add>
         Make memory leak prevention code that clears ThreadLocal instances more
@@ -2460,7 +2463,7 @@
       </fix>
       <fix>
         <bug>50459</bug>: Fix thread/classloader binding issues in
-        StandardContext. (slaurent) 
+        StandardContext. (slaurent)
       </fix>
       <update>
         <bug>50527</bug>: Improve an error message shown by HttpServlet. (markt)
@@ -2468,13 +2471,13 @@
       <add>
         <bug>50556</bug>: Improve JreMemoryLeakPreventionListener to prevent
         a potential class loader leak caused by a thread spawned when the class
-        <code>com.sun.jndi.ldap.LdapPoolManager</code> is initialized and the 
-        system property <code>com.sun.jndi.ldap.connect.pool.timeout</code> is 
+        <code>com.sun.jndi.ldap.LdapPoolManager</code> is initialized and the
+        system property <code>com.sun.jndi.ldap.connect.pool.timeout</code> is
         set to a value greater than 0. (slaurent)
       </add>
       <fix>
         <bug>50642</bug>: Move the <code>sun.net.www.http.HttpClient</code>
-        keep-alive thread memory leak protection from the 
+        keep-alive thread memory leak protection from the
         JreMemoryLeakPreventionListener to the WebappClassLoader since the
         thread that triggers the memory leak is created on demand. (markt)
       </fix>
@@ -2647,12 +2650,12 @@
       </fix>
       <fix>
         Improve sending an access message in DeltaManager.
-        Use <code>maxInactiveInterval</code> not of the Manager, but of the session. 
+        Use <code>maxInactiveInterval</code> not of the Manager, but of the session.
         If <code>maxInactiveInterval</code> is negative, the access message is not
         being sent. (kfujino)
       </fix>
       <fix>
-        <bug>50547</bug>: Add time stamp for CHANGE_SESSION_ID message and 
+        <bug>50547</bug>: Add time stamp for CHANGE_SESSION_ID message and
         SESSION_EXPIRED message. (kfujino)
       </fix>
     </changelog>
@@ -2677,7 +2680,7 @@
       </add>
       <fix>
         <bug>50303</bug>: Update JNDI how-to to reflect new JavaMail and JAF
-        download locations and that JAF is now included in Java SE 6. (markt) 
+        download locations and that JAF is now included in Java SE 6. (markt)
       </fix>
       <fix>
         CVE-2010-4172: Multiple XSS in Manager application. (markt/kkolinko)
@@ -2692,7 +2695,7 @@
       </add>
       <add>
         <bug>50294</bug>: Add more information to documentation regarding format
-        of configuration files. Patch provided by Luke Meyer. (markt) 
+        of configuration files. Patch provided by Luke Meyer. (markt)
       </add>
       <update>
         Configure the Manager and Host-Manager web applications to use HttpOnly
