@@ -53,6 +53,9 @@
       <fix>
         Encode the output of the SSI <code>printenv</code> command. (markt)
       </fix>
+      <fix>
+        Avoid protocol relative redirects in FORM authentication. (markt)
+      </fix>
       <scode>
         Use constants for SSI encoding values. (markt)
       </scode>
