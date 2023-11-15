@@ -678,7 +678,7 @@ public class InternalAprInputBuffer extends AbstractInputBuffer {
                     headers.removeHeader(headers.size() - 1);
                     skipLine(start);
                     return true;
-                } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
+                } else if (HttpParser.isControl(chr) && chr != Constants.HT) {
                     // Invalid value
                     // Delete the header (it will be the most recent one)
                     headers.removeHeader(headers.size() - 1);

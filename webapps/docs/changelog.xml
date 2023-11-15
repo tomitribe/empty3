@@ -88,6 +88,9 @@
       <fix>
         Ensure that the socket is returned only once to the poller. (violetagg)
       </fix>
+      <fix>
+        Align validation of HTTP trailer fields with standard fields. (markt)
+      </fix>
     </changelog>
   </subsection>
 </section>

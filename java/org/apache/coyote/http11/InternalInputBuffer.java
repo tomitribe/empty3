@@ -664,7 +664,7 @@ public class InternalInputBuffer extends AbstractInputBuffer {
                     // Invalid value
                     skipLine(start,true);
                     return true;
-                } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
+                } else if (HttpParser.isControl(chr) && chr != Constants.HT) {
                     // Invalid value
                     skipLine(start,true);
                     return true;
