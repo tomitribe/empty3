@@ -884,7 +884,7 @@ public class InternalNioInputBuffer extends AbstractInputBuffer {
                     } else if (prevChr == Constants.CR) {
                         // Invalid value
                         return skipLine(true);
-                    } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
+                    } else if (HttpParser.isControl(chr) && chr != Constants.HT) {
                         // Invalid value
                         return skipLine(true);
                     } else if (chr == Constants.SP || chr == Constants.HT) {
