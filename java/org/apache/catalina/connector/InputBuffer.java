@@ -302,10 +302,38 @@ public class InputBuffer extends Reader
         if(state == INITIAL_STATE)
             state = BYTE_STATE;
 
-        int result = coyoteRequest.doRead(bb);
+    try {
+            return coyoteRequest.doRead(bb);
+        } catch (BadRequestException bre) {
+            // Set flag used by asynchronous processing to detect errors on non-container threads
+            coyoteRequest.setErrorException(bre);
 
-        return result;
+            // In synchronous processing, this exception may be swallowed by the application so set error flags here.
+            // CH: We can't use ERROR_EXCEPTION because Tomcat 6 implements Servlet 2.5 and ERROR_EXCEPTION was
+            // introduced in Servlet 3.0
+            // coyoteRequest.setAttribute(RequestDispatcher.ERROR_EXCEPTION, bre);
 
+            coyoteRequest.getResponse().setStatus(400);
+            coyoteRequest.getResponse().setErrorTrue();
+
+            // Make the exception visible to the application
+            throw bre;
+        } catch (IOException ioe) {
+            // Set flag used by asynchronous processing to detect errors on non-container threads
+             coyoteRequest.setErrorException(ioe);
+
+            // In synchronous processing, this exception may be swallowed by the application so set error flags here.
+            // CH: We can't use ERROR_EXCEPTION because Tomcat 6 implements Servlet 2.5 and ERROR_EXCEPTION was
+            // introduced in Servlet 3.0
+            // coyoteRequest.setAttribute(RequestDispatcher.ERROR_EXCEPTION, bre);
+
+            coyoteRequest.getResponse().setStatus(400);
+            coyoteRequest.getResponse().setErrorTrue();
+
+            // Any other IOException on a read is almost always due to the remote client aborting the request.
+            // Make the exception visible to the application
+            throw new ClientAbortException(ioe);
+        }
     }
 
 

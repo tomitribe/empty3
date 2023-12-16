@@ -127,6 +127,11 @@ public final class Response {
 
     protected Request req;
 
+    /**
+     * The error flag.
+     */
+    protected boolean error = false;
+
     // ------------------------------------------------------------- Properties
 
     public Request getRequest() {
@@ -254,6 +259,14 @@ public final class Response {
     public boolean isExceptionPresent() {
         return ( errorException != null );
     }
+
+    public void setErrorTrue() {
+        error = true;
+    }
+
+   public boolean getErrorFlag(){
+        return error;
+   }
 
 
     /**
@@ -551,6 +564,7 @@ public final class Response {
         errorURI = null;
         headers.clear();
 
+        error = false;
         // update counters
         bytesWritten=0;
     }

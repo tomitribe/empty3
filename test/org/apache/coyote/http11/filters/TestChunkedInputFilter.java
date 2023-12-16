@@ -155,7 +155,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
         String extName = ";foo=";
         StringBuilder extValue = new StringBuilder(len);
         for (int i = 0; i < (len - extName.length()); i++) {
-            extValue.append("x");
+            extValue.append('x');
         }
 
         String[] request = new String[]{
@@ -347,6 +347,83 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
         }
     }
 
+
+    @Test
+    public void testTrailerHeaderNameNotTokenThrowException() throws Exception {
+        doTestTrailerHeaderNameNotToken(false);
+    }
+
+    @Test
+    public void testTrailerHeaderNameNotTokenSwallowException() throws Exception {
+        doTestTrailerHeaderNameNotToken(true);
+    }
+
+    private void doTestTrailerHeaderNameNotToken(boolean swallowException) throws Exception {
+
+        // Setup Tomcat instance
+        Tomcat tomcat = getTomcatInstance();
+
+        // No file system docBase required
+        Context ctx = tomcat.addContext("", null);
+
+        Tomcat.addServlet(ctx, "servlet", new SwallowBodyServlet(swallowException));
+        ctx.addServletMapping("/", "servlet");
+
+        tomcat.start();
+
+        String[] request = new String[]{
+            "POST / HTTP/1.1" + SimpleHttpClient.CRLF +
+            "Host: localhost" + SimpleHttpClient.CRLF +
+            "Transfer-encoding: chunked" + SimpleHttpClient.CRLF +
+            "Content-Type: application/x-www-form-urlencoded" + SimpleHttpClient.CRLF +
+            "Connection: close" + SimpleHttpClient.CRLF +
+            SimpleHttpClient.CRLF +
+            "3" + SimpleHttpClient.CRLF +
+            "a=0" + SimpleHttpClient.CRLF +
+            "4" + SimpleHttpClient.CRLF +
+            "&b=1" + SimpleHttpClient.CRLF +
+            "0" + SimpleHttpClient.CRLF +
+            "x@trailer: Test" + SimpleHttpClient.CRLF +
+            SimpleHttpClient.CRLF };
+
+        TrailerClient client = new TrailerClient(tomcat.getConnector().getLocalPort());
+        client.setRequest(request);
+
+        client.connect();
+        client.processRequest();
+        // Expected to fail because of invalid trailer header name
+        Assert.assertTrue(client.getResponseLine(), client.isResponse400());
+    }
+
+    private static class SwallowBodyServlet extends HttpServlet {
+        private static final long serialVersionUID = 1L;
+
+        private final boolean swallowException;
+
+        SwallowBodyServlet(boolean swallowException) {
+            this.swallowException = swallowException;
+        }
+
+        @Override
+        protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+                throws ServletException, IOException {
+            resp.setContentType("text/plain");
+            PrintWriter pw = resp.getWriter();
+
+            // Read the body
+            InputStream is = req.getInputStream();
+            try {
+                while (is.read() > -1) {
+                }
+                pw.write("OK");
+            } catch (IOException ioe) {
+                if (!swallowException) {
+                    throw ioe;
+                }
+            }
+        }
+    }
+
     private static class EchoHeaderServlet extends HttpServlet {
         private static final long serialVersionUID = 1L;
 
@@ -354,7 +431,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
 
         private final boolean expectPass;
 
-        public EchoHeaderServlet(boolean expectPass) {
+        EchoHeaderServlet(boolean expectPass) {
             this.expectPass = expectPass;
         }
 
@@ -384,7 +461,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
                 throw ioe;
             }
 
-            pw.write(Integer.valueOf(count).toString());
+            pw.write(Integer.toString(count));
 
             // Headers should be visible now
             dumpHeader("x-trailer1", req, pw);
@@ -413,7 +490,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
         private final boolean expectPass;
         private final int readLimit;
 
-        public BodyReadServlet(boolean expectPass, int readLimit) {
+        BodyReadServlet(boolean expectPass, int readLimit) {
             this.expectPass = expectPass;
             this.readLimit = readLimit;
         }
@@ -440,7 +517,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
                 throw ioe;
             }
 
-            pw.write(Integer.valueOf(countRead).toString());
+            pw.write(Integer.toString(countRead));
         }
 
         public boolean getExceptionDuringRead() {
@@ -454,7 +531,7 @@ public class TestChunkedInputFilter extends TomcatBaseTest {
 
     private static class TrailerClient extends SimpleHttpClient {
 
-        public TrailerClient(int port) {
+        TrailerClient(int port) {
             setPort(port);
         }
 
