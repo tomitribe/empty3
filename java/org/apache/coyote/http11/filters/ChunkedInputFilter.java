@@ -20,6 +20,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.Locale;
 
+import org.apache.catalina.connector.BadRequestException;
 import org.apache.tomcat.util.buf.ByteChunk;
 import org.apache.tomcat.util.buf.HexUtils;
 import org.apache.coyote.InputBuffer;
@@ -477,7 +478,9 @@ public class ChunkedInputFilter implements InputFilter {
                 colon = true;
             } else if (!HttpParser.isToken(chr)) {
                 // Non-token characters are illegal in header names
-                throw new IOException(sm.getString("chunkedInputFilter.invalidTrailerHeaderName"));
+                throwBadRequestException(sm.getString("chunkedInputFilter.invalidTrailerHeaderName"));
+            } else if (trailingHeaders.getEnd() >= trailingHeaders.getLimit()) {
+                throwBadRequestException(sm.getString("chunkedInputFilter.maxTrailer"));
             } else {
                 trailingHeaders.append(chr);
             }
@@ -543,6 +546,8 @@ public class ChunkedInputFilter implements InputFilter {
                     eol = true;
                 } else if (HttpParser.isControl(chr) && chr != Constants.HT) {
                     throw new IOException(sm.getString("chunkedInputFilter.invalidTrailerHeaderValue"));
+                } else if (trailingHeaders.getEnd() >= trailingHeaders.getLimit()) {
+                  throw new IOException(sm.getString("chunkedInputFilter.maxTrailer"));
                 } else if (chr == Constants.SP || chr == Constants.HT) {
                     trailingHeaders.append(chr);
                 } else {
@@ -568,6 +573,8 @@ public class ChunkedInputFilter implements InputFilter {
             chr = buf[pos];
             if ((chr != Constants.SP) && (chr != Constants.HT)) {
                 validLine = false;
+            } else if (trailingHeaders.getEnd() >= trailingHeaders.getLimit()) {
+                throwBadRequestException(sm.getString("chunkedInputFilter.maxTrailer"));
             } else {
                 eol = false;
                 // Copying one extra space in the buffer (since there must
@@ -596,6 +603,11 @@ public class ChunkedInputFilter implements InputFilter {
     private void throwIOException(String msg) throws IOException {
         error = true;
         throw new IOException(msg);
+    }
+
+    private void throwBadRequestException(String msg) throws IOException {
+        error = true;
+        throw new BadRequestException(msg);
     }
 
 
