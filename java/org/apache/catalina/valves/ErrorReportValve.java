@@ -121,8 +121,11 @@ public class ErrorReportValve
                 ;
             }
 
-            response.sendError
-                (HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            if (throwable instanceof org.apache.catalina.connector.BadRequestException) {
+                response.sendError (HttpServletResponse.SC_BAD_REQUEST);
+            }else{
+                response.sendError (HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }
 
         }
 

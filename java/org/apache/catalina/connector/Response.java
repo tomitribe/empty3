@@ -214,10 +214,6 @@ public class Response
      */
     private boolean isCharacterEncodingSet = false;
     
-    /**
-     * The error flag.
-     */
-    protected boolean error = false;
 
 
     /**
@@ -264,7 +260,6 @@ public class Response
         usingWriter = false;
         appCommitted = false;
         included = false;
-        error = false;
         isCharacterEncodingSet = false;
         
         cookies.clear();
@@ -453,7 +448,7 @@ public class Response
      * Set the error flag.
      */
     public void setError() {
-        error = true;
+        getCoyoteResponse().setErrorTrue();
     }
 
 
@@ -461,7 +456,7 @@ public class Response
      * Error flag accessor.
      */
     public boolean isError() {
-        return error;
+        return getCoyoteResponse().getErrorFlag();
     }
 
 
@@ -1326,6 +1321,16 @@ public class Response
      */
     public void sendRedirect(String location) 
         throws IOException {
+        sendRedirect(location, SC_FOUND);
+
+    }
+
+    /**
+     * Internal method that allows a redirect to be sent with a status other
+     * than {@link HttpServletResponse#SC_FOUND} (302). No attempt is made to
+     * validate the status code.
+     */
+    public void sendRedirect(String location, int status) throws IOException {
 
         if (isCommitted())
             throw new IllegalStateException
@@ -1341,7 +1346,7 @@ public class Response
         // Generate a temporary redirect to the specified location
         try {
             String absolute = toAbsolute(location);
-            setStatus(SC_FOUND);
+            setStatus(status);
             setHeader("Location", absolute);
         } catch (IllegalArgumentException e) {
             setStatus(SC_NOT_FOUND);
